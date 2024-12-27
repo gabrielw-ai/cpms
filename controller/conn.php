@@ -1,9 +1,9 @@
 <?php
 // Keep this file as is since it's widely used
 $host = 'localhost';
-$username = 'cpms';
-$password = '][L@0UOa3wgt-wNJ';
-$database = 'cpms';
+$username = '';
+$password = '';
+$database = '';
 
 try {
     $conn = new PDO("mysql:host=$host;dbname=$database", $username, $password);
