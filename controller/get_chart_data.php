@@ -10,12 +10,12 @@ if (isset($_GET['project']) && isset($_GET['period']) && isset($_GET['metric']))
         $metric = $_GET['metric'];
         
         if ($period === 'monthly') {
-            if (!str_ends_with($tableName, '_MON')) {
-                $tableName = $tableName . '_MON';
+            if (!str_ends_with($tableName, '_mon')) {
+                $tableName = $tableName . '_mon';
             }
             
             $sql = "SELECT month, value 
-                    FROM `{$tableName}_VALUES` v 
+                    FROM `{$tableName}_values` v 
                     JOIN `{$tableName}` k ON v.kpi_id = k.id 
                     WHERE k.kpi_metrics = ? 
                     AND month BETWEEN 1 AND 12 
@@ -51,7 +51,7 @@ if (isset($_GET['project']) && isset($_GET['period']) && isset($_GET['metric']))
             $sql .= implode(", ", $weekColumns);
             
             $sql .= " FROM `$tableName` k
-                     LEFT JOIN `{$tableName}_VALUES` v ON k.id = v.kpi_id
+                     LEFT JOIN `{$tableName}_values` v ON k.id = v.kpi_id
                      WHERE k.kpi_metrics = ?
                      GROUP BY k.id, k.queue, k.kpi_metrics, k.target, k.target_type";
             

@@ -22,7 +22,7 @@ try {
     $newPassword = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
 
     // Update password in employee_active table
-    $stmt = $conn->prepare("UPDATE employee_active SET password = ? WHERE NIK = ?");
+    $stmt = $conn->prepare("UPDATE employee_active SET password = ? WHERE nik = ?");
     $stmt->execute([$newPassword, $nik]);
 
     if ($stmt->rowCount() > 0) {

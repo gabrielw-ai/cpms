@@ -29,7 +29,7 @@ try {
     error_log("Project requested: " . $project);
     
     // Get KPI metrics from the project's KPI metrics table
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project));
+    $tableName = "KPI_" . str_replace(" ", "_", strtolower($project));
     error_log("Looking for KPI metrics in table: " . $tableName);
     
     // Check if table exists

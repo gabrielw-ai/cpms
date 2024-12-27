@@ -12,7 +12,7 @@ if (isset($_GET['nik'])) {
                 TIMESTAMPDIFF(MONTH, join_date, CURRENT_DATE()) as months_diff,
                 DATEDIFF(CURRENT_DATE(), join_date) as days_diff
             FROM employee_active 
-            WHERE NIK = ?
+            WHERE nik = ?
         ");
         $stmt->execute([$_GET['nik']]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);

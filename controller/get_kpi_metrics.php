@@ -8,7 +8,7 @@ if (isset($_GET['table'])) {
         // Add error logging
         error_log("Fetching KPI metrics for table: " . $_GET['table']);
         
-        $tableName = $_GET['table'];
+        $tableName = strtolower($_GET['table']);
         $sql = "SELECT DISTINCT kpi_metrics FROM `$tableName` ORDER BY kpi_metrics";
         
         error_log("SQL Query: " . $sql);

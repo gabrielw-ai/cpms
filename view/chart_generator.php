@@ -52,7 +52,7 @@ $(document).ready(function() {
             return;
         }
 
-        const tableName = project + (period === "monthly" ? "_MON" : "");
+        const tableName = project + (period === "monthly" ? "_mon" : "");
         
         // Show loading
         $("#kpi_metrics").html("<option value=\"\">Loading...</option>").prop("disabled", true);
@@ -158,7 +158,7 @@ ob_start();
                                 $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
                                 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                                     $projectName = $row['project_name'];
-                                    $tableName = 'KPI_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $projectName);
+                                    $tableName = 'kpi_' . strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $projectName));
                                     echo "<option value='" . htmlspecialchars($tableName) . "'>" . 
                                          htmlspecialchars($projectName) . "</option>";
                                 }

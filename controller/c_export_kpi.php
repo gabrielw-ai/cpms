@@ -7,17 +7,17 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 if (isset($_GET['table'])) {
     try {
-        $tableName = $_GET['table'];
+        $tableName = strtolower($_GET['table']);
         $viewType = isset($_GET['view']) && $_GET['view'] === 'monthly' ? 'monthly' : 'weekly';
         
         // Set table names based on view type - same as DataTables
         if ($viewType === 'monthly') {
-            $kpiTable = $tableName . "_MON";  // Use _MON table for KPI definitions
-            $valuesTable = $tableName . "_MON_VALUES";
+            $kpiTable = $tableName . "_mon";  // Use _mon table for KPI definitions
+            $valuesTable = $tableName . "_mon_values";
             $periodColumn = 'month';
         } else {
             $kpiTable = $tableName;  // Use base table for KPI definitions
-            $valuesTable = $tableName . "_VALUES";
+            $valuesTable = $tableName . "_values";
             $periodColumn = 'week';
         }
         

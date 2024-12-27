@@ -24,22 +24,22 @@ function sendJsonResponse($success, $data) {
 if (isset($_POST['importKPI']) && isset($_FILES['file'])) {
     try {
         $viewType = $_POST['view_type'] ?? 'weekly';
-        $tableName = $_POST['table_name'];
-        $baseTableName = preg_replace('/_MON$/', '', $tableName); // Remove _MON if exists
+        $tableName = strtolower($_POST['table_name']);
+        $baseTableName = preg_replace('/_mon$/', '', $tableName); // Remove _mon if exists
         
         // Always define both tables for KPI definitions
         $kpiTables = [
             $baseTableName,              // Weekly KPI definitions
-            $baseTableName . '_MON'      // Monthly KPI definitions
+            $baseTableName . '_mon'      // Monthly KPI definitions
         ];
         
-        // Set values table based on view type (keep this as is)
+        // Set values table based on view type
         if ($viewType === 'monthly') {
-            $valuesTable = $baseTableName . "_MON_VALUES";
+            $valuesTable = $baseTableName . "_mon_values";
             $periodColumn = 'month';
             $periodCount = 12;
         } else {
-            $valuesTable = $baseTableName . "_VALUES";
+            $valuesTable = $baseTableName . "_values";
             $periodColumn = 'week';
             $periodCount = 52;
         }
@@ -109,7 +109,7 @@ if (isset($_POST['importKPI']) && isset($_FILES['file'])) {
 
                 // Handle values only for current view type
                 if ($viewType === 'monthly') {
-                    $getKPIId = $conn->prepare("SELECT id FROM `{$baseTableName}_MON` WHERE queue = ? AND kpi_metrics = ?");
+                    $getKPIId = $conn->prepare("SELECT id FROM `{$baseTableName}_mon` WHERE queue = ? AND kpi_metrics = ?");
                 } else {
                     $getKPIId = $conn->prepare("SELECT id FROM `{$baseTableName}` WHERE queue = ? AND kpi_metrics = ?");
                 }

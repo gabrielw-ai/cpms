@@ -11,7 +11,7 @@ try {
     }
 
     $project = $_GET['project'];
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project));
+    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project));
 
     // Debug log
     error_log("Checking table: " . $tableName);

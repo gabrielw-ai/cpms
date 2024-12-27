@@ -577,7 +577,7 @@ $additional_js .= '
                 <thead>
                     <tr>
                         <th>Project</th>
-                        <th>NIK</th>
+                        <th>nik</th>
                         <th>Name</th>
                         <th>Role</th>
                         <th>Tenure</th>
@@ -616,7 +616,7 @@ $additional_js .= '
                     
                     <!-- Display only fields -->
                     <div class="form-group">
-                        <label>NIK</label>
+                        <label>nik</label>
                         <input type="text" class="form-control" id="edit_nik" readonly>
                     </div>
                     <div class="form-group">

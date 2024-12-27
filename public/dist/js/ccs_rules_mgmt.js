@@ -43,8 +43,8 @@ $(function() {
                             } else {
                                 response.data.forEach(function(employee) {
                                     employeeSelect.append(new Option(
-                                        employee.NIK + " - " + employee.employee_name,
-                                        employee.NIK
+                                        employee.nik + " - " + employee.employee_name,
+                                        employee.nik
                                     ));
                                 });
                             }

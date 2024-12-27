@@ -37,14 +37,14 @@ try {
     $month = strtolower($_POST['month']);
     $value = floatval($_POST['value']);
 
-    error_log("Adding KPI for Project: $project, NIK: $nik, Month: $month, Value: $value");
+    // Convert table name to lowercase
+    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project)) . "_individual_mon";
 
-    // Get the table name
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project)) . "_INDIVIDUAL_MON";
+    error_log("Adding KPI for Project: $project, NIK: $nik, Month: $month, Value: $value");
 
     // Check if record exists
     $checkSql = "SELECT id FROM `$tableName` 
-                 WHERE NIK = ? 
+                 WHERE nik = ? 
                  AND kpi_metrics = ? 
                  AND queue = ?";
     $checkStmt = $conn->prepare($checkSql);
@@ -55,7 +55,7 @@ try {
         // Update existing record
         $sql = "UPDATE `$tableName` 
                 SET `$month` = ? 
-                WHERE NIK = ? 
+                WHERE nik = ? 
                 AND kpi_metrics = ? 
                 AND queue = ?";
         $stmt = $conn->prepare($sql);
@@ -63,7 +63,7 @@ try {
     } else {
         // Insert new record
         $sql = "INSERT INTO `$tableName` 
-                (NIK, employee_name, kpi_metrics, queue, `$month`) 
+                (nik, employee_name, kpi_metrics, queue, `$month`) 
                 VALUES (?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
         $stmt->execute([$nik, $name, $kpiMetrics, $queue, $value]);

@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var formData = new FormData(this);
         formData.append('project', project);
-        formData.append('table_name', 'KPI_' + project.replace(/[^a-zA-Z0-9_]/g, '_'));
+        formData.append('table_name', 'kpi_' + project.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase());
 
         $.ajax({
             url: '../controller/c_viewer_update.php',

@@ -27,7 +27,7 @@ function createProjectTables($conn, $baseTableName) {
         $conn->exec($weeklySQL);
 
         // Create monthly table
-        $monthlyTableName = $baseTableName . "_MON";
+        $monthlyTableName = $baseTableName . "_mon";
         $monthlySQL = "CREATE TABLE IF NOT EXISTS `$monthlyTableName` (
             id INT AUTO_INCREMENT PRIMARY KEY,
             queue VARCHAR(255) NOT NULL,
@@ -53,10 +53,10 @@ function createProjectTables($conn, $baseTableName) {
         $conn->exec($monthlySQL);
 
         // Create individual weekly table
-        $individualWeeklyTable = $baseTableName . "_INDIVIDUAL";
+        $individualWeeklyTable = $baseTableName . "_individual";
         $individualWeeklySQL = "CREATE TABLE IF NOT EXISTS `$individualWeeklyTable` (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            NIK VARCHAR(50) NOT NULL,
+            nik VARCHAR(50) NOT NULL,
             employee_name VARCHAR(255) NOT NULL,
             queue VARCHAR(255) NOT NULL,
             kpi_metrics VARCHAR(255) NOT NULL,
@@ -65,17 +65,17 @@ function createProjectTables($conn, $baseTableName) {
             week3 DECIMAL(10,2) DEFAULT NULL,
             week4 DECIMAL(10,2) DEFAULT NULL,
             week5 DECIMAL(10,2) DEFAULT NULL,
-            UNIQUE KEY unique_employee_kpi (NIK, queue, kpi_metrics)
+            UNIQUE KEY unique_employee_kpi (nik, queue, kpi_metrics)
         )";
         
         error_log("Creating individual weekly table with SQL: " . $individualWeeklySQL);
         $conn->exec($individualWeeklySQL);
 
         // Create individual monthly table
-        $individualMonthlyTable = $baseTableName . "_INDIVIDUAL_MON";
+        $individualMonthlyTable = $baseTableName . "_individual_mon";
         $individualMonthlySQL = "CREATE TABLE IF NOT EXISTS `$individualMonthlyTable` (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            NIK VARCHAR(50) NOT NULL,
+            nik VARCHAR(50) NOT NULL,
             employee_name VARCHAR(255) NOT NULL,
             queue VARCHAR(255) NOT NULL,
             kpi_metrics VARCHAR(255) NOT NULL,
@@ -91,14 +91,14 @@ function createProjectTables($conn, $baseTableName) {
             october DECIMAL(10,2) DEFAULT NULL,
             november DECIMAL(10,2) DEFAULT NULL,
             december DECIMAL(10,2) DEFAULT NULL,
-            UNIQUE KEY unique_employee_kpi (NIK, queue, kpi_metrics)
+            UNIQUE KEY unique_employee_kpi (nik, queue, kpi_metrics)
         )";
         
         error_log("Creating individual monthly table with SQL: " . $individualMonthlySQL);
         $conn->exec($individualMonthlySQL);
 
         // Create weekly values table
-        $weeklyValuesTable = $baseTableName . "_VALUES";
+        $weeklyValuesTable = $baseTableName . "_values";
         $weeklyValuesSQL = "CREATE TABLE IF NOT EXISTS `$weeklyValuesTable` (
             id INT AUTO_INCREMENT PRIMARY KEY,
             kpi_id INT NOT NULL,
@@ -112,7 +112,7 @@ function createProjectTables($conn, $baseTableName) {
         $conn->exec($weeklyValuesSQL);
 
         // Create monthly values table
-        $monthlyValuesTable = $baseTableName . "_MON_VALUES";
+        $monthlyValuesTable = $baseTableName . "_mon_values";
         $monthlyValuesSQL = "CREATE TABLE IF NOT EXISTS `$monthlyValuesTable` (
             id INT AUTO_INCREMENT PRIMARY KEY,
             kpi_id INT NOT NULL,
@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Get the base table name for the selected project
-        $baseTableName = "KPI_" . str_replace(" ", "_", strtoupper($_POST['project']));
+        $baseTableName = "kpi_" . strtolower(str_replace(" ", "_", $_POST['project']));
         error_log("Base table name: " . $baseTableName);
 
         // Create both weekly and monthly tables

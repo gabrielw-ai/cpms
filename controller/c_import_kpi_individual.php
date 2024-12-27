@@ -24,7 +24,8 @@ try {
     }
 
     $project = $_POST['project'];
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project)) . "_INDIVIDUAL_MON";
+    // Convert table name to lowercase
+    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project)) . "_individual_mon";
     
     $inputFileName = $_FILES['file']['tmp_name'];
     $spreadsheet = IOFactory::load($inputFileName);
@@ -34,71 +35,43 @@ try {
     // Remove header row
     array_shift($rows);
     
-    // Begin transaction
     $conn->beginTransaction();
-    
     $processed = 0;
     $errors = [];
     
     foreach ($rows as $index => $row) {
-        if (empty($row[0])) continue; // Skip empty rows
-        
         try {
-            $nik = trim($row[0]);
-            $name = trim($row[1]);
-            $kpiMetrics = trim($row[2]);
-            $queue = trim($row[3]);
+            if (empty($row[0])) continue; // Skip empty rows
             
-            // Process monthly values (columns 4-15)
-            $monthlyValues = array_slice($row, 4, 12);
-            $months = ['january', 'february', 'march', 'april', 'may', 'june', 
-                      'july', 'august', 'september', 'october', 'november', 'december'];
+            // Prepare data
+            $data = [
+                'nik' => $row[0],
+                'employee_name' => $row[1],
+                'kpi_metrics' => $row[2],
+                'queue' => $row[3],
+                'january' => $row[4],
+                'february' => $row[5],
+                'march' => $row[6],
+                'april' => $row[7],
+                'may' => $row[8],
+                'june' => $row[9],
+                'july' => $row[10],
+                'august' => $row[11],
+                'september' => $row[12],
+                'october' => $row[13],
+                'november' => $row[14],
+                'december' => $row[15]
+            ];
             
-            // Check if record exists
-            $stmt = $conn->prepare("
-                SELECT id FROM `$tableName` 
-                WHERE NIK = ? AND kpi_metrics = ? AND queue = ?
-            ");
-            $stmt->execute([$nik, $kpiMetrics, $queue]);
-            $exists = $stmt->fetch();
-            
-            if ($exists) {
-                // Update existing record
-                $updates = [];
-                $params = [];
-                foreach ($months as $i => $month) {
-                    if (isset($monthlyValues[$i]) && $monthlyValues[$i] !== '') {
-                        $updates[] = "`$month` = ?";
-                        $params[] = floatval($monthlyValues[$i]);
-                    }
-                }
+            // Build columns and values for SQL
+            $columns = array_keys($data);
+            $values = array_values($data);
                 
-                if (!empty($updates)) {
-                    $sql = "UPDATE `$tableName` SET " . implode(", ", $updates) . 
-                           " WHERE NIK = ? AND kpi_metrics = ? AND queue = ?";
-                    $params = array_merge($params, [$nik, $kpiMetrics, $queue]);
-                    
-                    $stmt = $conn->prepare($sql);
-                    $stmt->execute($params);
-                }
-            } else {
-                // Insert new record
-                $columns = ['NIK', 'employee_name', 'kpi_metrics', 'queue'];
-                $values = [$nik, $name, $kpiMetrics, $queue];
+            $sql = "INSERT INTO `$tableName` (" . implode(", ", $columns) . ") 
+                    VALUES (" . str_repeat("?,", count($values)-1) . "?)";
                 
-                foreach ($months as $i => $month) {
-                    if (isset($monthlyValues[$i]) && $monthlyValues[$i] !== '') {
-                        $columns[] = "`$month`";
-                        $values[] = floatval($monthlyValues[$i]);
-                    }
-                }
-                
-                $sql = "INSERT INTO `$tableName` (" . implode(", ", $columns) . ") 
-                        VALUES (" . str_repeat("?,", count($values)-1) . "?)";
-                
-                $stmt = $conn->prepare($sql);
-                $stmt->execute($values);
-            }
+            $stmt = $conn->prepare($sql);
+            $stmt->execute($values);
             
             $processed++;
             

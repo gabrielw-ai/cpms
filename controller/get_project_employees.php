@@ -36,10 +36,10 @@ try {
     error_log("Current user NIK: " . $currentUserNIK);
 
     // Query excluding the current user's NIK
-    $sql = "SELECT NIK, employee_name 
+    $sql = "SELECT nik, employee_name 
             FROM employee_active 
             WHERE project = :project 
-            AND NIK != :current_user
+            AND nik != :current_user
             ORDER BY employee_name";
 
     $stmt = $conn->prepare($sql);

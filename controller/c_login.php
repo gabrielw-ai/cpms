@@ -1,17 +1,19 @@
 <?php
 session_start();
 require_once 'conn.php';
-require_once '../routing.php';
+require_once dirname(__DIR__) . '/routing.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nik = $_POST['nik'] ?? '';
-    $password = $_POST['password'] ?? '';
+try {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $nik = $_POST['nik'];
+        $password = $_POST['password'];
 
-    try {
-        // Debug log
-        error_log("Login attempt for NIK: " . $nik);
-
-        $stmt = $conn->prepare("SELECT * FROM employee_active WHERE NIK = ?");
+        // Query should use lowercase column names
+        $sql = "SELECT nik, employee_name, employee_email, role, project, password 
+                FROM employee_active 
+                WHERE nik = ?";
+        
+        $stmt = $conn->prepare($sql);
         $stmt->execute([$nik]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -19,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             error_log("User found, checking password");
             if (password_verify($password, $user['password'])) {
                 // Login successful
-                $_SESSION['user_nik'] = $user['NIK'];
+                $_SESSION['user_nik'] = $user['nik'];
                 $_SESSION['user_name'] = $user['employee_name'];
                 $_SESSION['user_role'] = $user['role'];
                 
@@ -29,23 +31,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 error_log("Password verification failed");
                 $_SESSION['error'] = "Invalid NIK or password";
+                header('Location: ../view/login.php');
+                exit;
             }
         } else {
             error_log("No user found with NIK: " . $nik);
             $_SESSION['error'] = "Invalid NIK or password";
+            header('Location: ../view/login.php');
+            exit;
         }
-        
-        header('Location: ../view/login.php');
-        exit;
 
-    } catch (PDOException $e) {
-        error_log("Database error in login: " . $e->getMessage());
-        $_SESSION['error'] = "Database error: " . $e->getMessage();
+    } else {
+        // If not POST request, redirect to login
         header('Location: ../view/login.php');
         exit;
     }
-} else {
-    // If not POST request, redirect to login
+} catch (Exception $e) {
+    error_log("Database error in login: " . $e->getMessage());
+    $_SESSION['error'] = "Database error: " . $e->getMessage();
     header('Location: ../view/login.php');
     exit;
 }

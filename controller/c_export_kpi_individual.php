@@ -26,8 +26,8 @@ try {
     error_log("Metrics: " . print_r($metrics, true));
     error_log("Queues: " . print_r($queues, true));
 
-    // Get the table name
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project)) . "_INDIVIDUAL_MON";
+    // Convert table name to lowercase
+    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project)) . "_individual_mon";
 
     // Create new Spreadsheet object
     $spreadsheet = new Spreadsheet();

@@ -20,12 +20,12 @@ $isLimitedAccess = ($userRole === 'Agent' || $userRole === 'Team Leader');
 $userProject = null;
 if ($isLimitedAccess) {
     try {
-        $stmt = $conn->prepare("SELECT project FROM employee_active WHERE NIK = ?");
+        $stmt = $conn->prepare("SELECT project FROM employee_active WHERE nik = ?");
         $stmt->execute([$_SESSION['user_nik']]);
         $userProject = $stmt->fetchColumn();
         
         if ($userProject) {
-            $tableName = 'KPI_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $userProject);
+            $tableName = 'kpi_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $userProject);
             $_GET['table'] = $tableName;
         }
     } catch (PDOException $e) {
@@ -133,7 +133,7 @@ ob_start();
                     try {
                         $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
                         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                            $tableName = 'KPI_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $row['project_name']);
+                            $tableName = 'kpi_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $row['project_name']);
                                         $selected = (isset($_GET['table']) && $_GET['table'] === $tableName) ? 'selected' : '';
                                         // Add default view=weekly to the form submission
                                         if ($selected && !isset($_GET['view'])) {
@@ -213,12 +213,12 @@ ob_start();
                                         
                                         // Set table names based on view type
             if ($viewType === 'monthly') {
-                                            $kpiTable = $tableName . "_MON";  // Use _MON table for KPI definitions
-                                            $valuesTable = $tableName . "_MON_VALUES";
+                                            $kpiTable = $tableName . "_mon";  // Use _mon table for KPI definitions
+                                            $valuesTable = $tableName . "_mon_values";
                                             $periodColumn = 'month';
                 } else {
                                             $kpiTable = $tableName;  // Use base table for KPI definitions
-                                            $valuesTable = $tableName . "_VALUES";
+                                            $valuesTable = $tableName . "_values";
                                             $periodColumn = 'week';
                                         }
                                         

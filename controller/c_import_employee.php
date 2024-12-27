@@ -25,7 +25,7 @@ try {
     $hashedPassword = password_hash($defaultPassword, PASSWORD_DEFAULT);
     
     $sql = "INSERT INTO employee_active (
-        NIK, employee_name, employee_email, role, project, join_date, password
+        nik, employee_name, employee_email, role, project, join_date, password
     ) VALUES (
         :nik, :name, :email, :role, :project, :join_date, :password
     ) ON DUPLICATE KEY UPDATE 

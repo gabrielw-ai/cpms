@@ -36,7 +36,7 @@ try {
     error_log("KPI metrics requested: " . print_r($kpiMetrics, true));
     
     // Get queues from the project's KPI metrics table
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project));
+    $tableName = "KPI_" . str_replace(" ", "_", strtolower($project));
     error_log("Looking for queues in table: " . $tableName);
     
     // Check if table exists

@@ -10,7 +10,7 @@ try {
 
     $project = $_GET['project'];
     $id = $_GET['id'];
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project));
+    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project));
 
     $stmt = $conn->prepare("
         SELECT 

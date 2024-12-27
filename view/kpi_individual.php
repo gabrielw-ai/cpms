@@ -198,7 +198,7 @@ EOT;
             <table id="stagingTable" class="table table-bordered table-striped">
                 <thead>
                     <tr>
-                        <th>NIK</th>
+                        <th>nik</th>
                         <th>Name</th>
                         <th>KPI Metrics</th>
                         <th>Queue</th>
@@ -239,7 +239,7 @@ EOT;
                         <select class="form-control" name="employee" id="employeeSelect" required>
                             <option value="">Search employee...</option>
                         </select>
-                        <input type="hidden" name="nik" id="selectedNIK">
+                        <input type="hidden" name="nik" id="selectedNik">
                         <input type="hidden" name="name" id="selectedName">
                     </div>
                     <div class="form-group">

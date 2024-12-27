@@ -38,8 +38,8 @@ try {
     $metrics = $input['metrics'];
     $queues = $input['queues'];
 
-    // Get data from the monthly table
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project)) . "_INDIVIDUAL_MON";
+    // Convert table name to lowercase
+    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project)) . "_individual_mon";
     error_log("Looking for data in table: " . $tableName);
 
     // Check if table exists
@@ -56,7 +56,7 @@ try {
     $sql = "SELECT * FROM `$tableName` 
             WHERE kpi_metrics IN ($metricPlaceholders) 
             AND queue IN ($queuePlaceholders)
-            ORDER BY NIK, kpi_metrics, queue";
+            ORDER BY nik, kpi_metrics, queue";
 
     error_log("SQL Query: " . $sql);
     error_log("Metrics: " . print_r($metrics, true));

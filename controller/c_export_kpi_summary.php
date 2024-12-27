@@ -11,7 +11,8 @@ try {
     }
 
     $project = $_GET['project'];
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project));
+    // Convert table name to lowercase
+    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project));
 
     // Create new Spreadsheet object
     $spreadsheet = new Spreadsheet();
@@ -67,8 +68,8 @@ try {
         $sheet->getColumnDimension($col)->setAutoSize(true);
     }
 
-    // Set the filename
-    $filename = "KPI_Summary_{$project}_" . date('Y-m-d') . ".xlsx";
+    // Set the filename - keep filename as is for readability
+    $filename = "kpi_summary_{$project}_" . date('Y-m-d') . ".xlsx";
 
     // Redirect output to a client's web browser
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

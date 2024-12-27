@@ -4,7 +4,7 @@ require_once 'controller/conn.php';
 if (isset($_GET['pj_name']) && isset($_GET['queue'])) {
     try {
         $pj_name = preg_replace('/[^a-zA-Z0-9_]/', '', $_GET['pj_name']);
-        $tableName = "KPI_" . $pj_name;
+        $tableName = "kpi_" . strtolower($pj_name);
         
         $stmt = $conn->prepare("SELECT DISTINCT kpi_metrics FROM `$tableName` WHERE queue = ?");
         $stmt->execute([$_GET['queue']]);

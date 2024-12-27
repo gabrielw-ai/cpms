@@ -22,7 +22,7 @@ $(document).ready(function() {
             zeroRecords: "No matching records found"
         },
         columns: [
-            { data: "NIK" },
+            { data: "nik" },
             { data: "employee_name" },
             { data: "kpi_metrics" },
             { data: "queue" },

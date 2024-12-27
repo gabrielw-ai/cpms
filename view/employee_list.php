@@ -286,7 +286,7 @@ $additional_js = '
                                         <input type="checkbox" id="selectAll" class="select-all-checkbox" onclick="toggleAllCheckboxes()">
                                     </div>
                                 </th>
-                                <th>NIK</th>
+                                <th>nik</th>
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Role</th>
@@ -300,7 +300,7 @@ $additional_js = '
                             <?php 
                             try {
                                 $sql = "SELECT 
-                                        NIK, 
+                                        nik, 
                                         employee_name, 
                                         employee_email, 
                                         role, 
@@ -339,11 +339,11 @@ $additional_js = '
                                     echo "<tr>";
                                     // Only show checkbox if not Super_User
                                     if ($row['role'] !== 'Super_User') {
-                                        echo "<td><div class='checkbox-wrapper'><input type='checkbox' class='employee-select' value='" . htmlspecialchars($row['NIK']) . "' onchange='toggleAllCheckboxes()'></div></td>";
+                                        echo "<td><div class='checkbox-wrapper'><input type='checkbox' class='employee-select' value='" . htmlspecialchars($row['nik']) . "' onchange='toggleAllCheckboxes()'></div></td>";
                                     } else {
                                         echo "<td></td>"; // Empty cell for Super_User
                                     }
-                                    echo "<td>" . htmlspecialchars($row['NIK']) . "</td>";
+                                    echo "<td>" . htmlspecialchars($row['nik']) . "</td>";
                                     echo "<td>" . htmlspecialchars($row['employee_name']) . "</td>";
                                     echo "<td>" . htmlspecialchars($row['employee_email']) . "</td>";
                                     echo "<td>" . htmlspecialchars($row['role']) . "</td>";
@@ -355,7 +355,7 @@ $additional_js = '
                                     // Only show edit button for Super_User
                                     if ($row['role'] === 'Super_User') {
                                         echo "<button type='button' class='btn btn-sm btn-primary' onclick='editEmployee(this)' 
-                                                data-nik='" . htmlspecialchars($row['NIK']) . "'
+                                                data-nik='" . htmlspecialchars($row['nik']) . "'
                                                 data-name='" . htmlspecialchars($row['employee_name']) . "'
                                                 data-email='" . htmlspecialchars($row['employee_email']) . "'
                                                 data-role='" . htmlspecialchars($row['role']) . "'
@@ -366,7 +366,7 @@ $additional_js = '
                                     } else {
                                         // Show both edit and delete for non-Super_User
                                         echo "<button type='button' class='btn btn-sm btn-primary' onclick='editEmployee(this)' 
-                                                data-nik='" . htmlspecialchars($row['NIK']) . "'
+                                                data-nik='" . htmlspecialchars($row['nik']) . "'
                                                 data-name='" . htmlspecialchars($row['employee_name']) . "'
                                                 data-email='" . htmlspecialchars($row['employee_email']) . "'
                                                 data-role='" . htmlspecialchars($row['role']) . "'
@@ -374,7 +374,7 @@ $additional_js = '
                                                 data-join-date='" . htmlspecialchars($row['join_date']) . "'>
                                                 <i class='fas fa-edit'></i>
                                             </button>";
-                                        echo "<button type='button' class='btn btn-sm btn-danger ml-1' onclick='deleteEmployee(\"" . htmlspecialchars($row['NIK']) . "\")'>
+                                        echo "<button type='button' class='btn btn-sm btn-danger ml-1' onclick='deleteEmployee(\"" . htmlspecialchars($row['nik']) . "\")'>
                                                 <i class='fas fa-trash'></i>
                                             </button>";
                                     }
@@ -589,7 +589,7 @@ function deleteEmployee(nik) {
                 <input type="hidden" name="action" value="add">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label>NIK</label>
+                        <label>nik</label>
                         <input type="text" class="form-control" name="nik" required>
                     </div>
                     <div class="form-group">
@@ -654,7 +654,7 @@ function deleteEmployee(nik) {
                 <input type="hidden" name="original_nik" id="edit_original_nik">
                 <div class="modal-body">
                     <div class="form-group">
-                        <label>NIK</label>
+                        <label>nik</label>
                         <input type="text" class="form-control" name="nik" id="edit_nik" required>
                     </div>
                     <div class="form-group">

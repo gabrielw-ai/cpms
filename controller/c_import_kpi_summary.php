@@ -52,8 +52,9 @@ try {
     }
 
     $project = $_POST['project'];
-    $baseTableName = "KPI_" . str_replace(" ", "_", strtoupper($project));
-    $monthlyTableName = $baseTableName . "_MON";
+    // Convert table names to lowercase
+    $baseTableName = "kpi_" . strtolower(str_replace(" ", "_", $project));
+    $monthlyTableName = $baseTableName . "_mon";
 
     // Log table names
     error_log("Base table name: " . $baseTableName);
