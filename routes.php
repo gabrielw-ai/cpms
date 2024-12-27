@@ -66,4 +66,8 @@ return [
     'project/queues' => 'controller/get_project_queues.php',
     'project/employees' => 'controller/get_project_employees.php',
     'kpi/individual/process' => 'controller/c_kpi_individual_process.php',
+    
+    // User Settings route
+    'user/settings' => 'view/user_settings.php',
+    'user/settings/update' => 'controller/c_user_settings.php',
 ];

@@ -108,3 +108,6 @@ Router::add('project/edit', '/controller/c_project_namelist.php');
 Router::add('project/delete', '/controller/c_project_namelist.php');
 Router::add('project/get', '/controller/c_project_namelist.php'); 
 
+// Add User Settings route
+Router::add('user/settings', '/user/settings');  // URL path 
+

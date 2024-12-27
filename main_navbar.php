@@ -174,7 +174,17 @@ $isAgent = ($userRole === 'Agent');
                             </a>
                         </li>
 
-                    <?php else: // Show only CCS Viewer for agents ?>
+                    <?php endif; // End of non-agent menu items ?>
+
+                    <!-- User Settings - Shown to all users -->
+                    <li class="nav-item">
+                        <a href="<?php echo Router::url('user/settings'); ?>" class="nav-link">
+                            <i class="nav-icon fas fa-user-cog"></i>
+                            <p>User Settings</p>
+                        </a>
+                    </li>
+
+                    <?php if ($isAgent): // Show only CCS Viewer for agents ?>
                         <li class="nav-item">
                             <a href="<?php echo Router::url('ccs/viewer'); ?>" class="nav-link">
                                 <i class="nav-icon fas fa-eye"></i>
