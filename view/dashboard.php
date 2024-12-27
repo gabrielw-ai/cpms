@@ -1,9 +1,15 @@
 <?php
+session_start();
 $page_title = "Dashboard";
-ob_start();
-require_once '../controller/conn.php';
-?>
 
+// Check if user is logged in
+if (!isset($_SESSION['user_nik'])) {
+    header('Location: ' . Router::url('login'));
+    exit;
+}
+
+// Store the content
+$content = '
 <div class="row">
     <div class="col-lg-12">
         <div class="card">
@@ -27,8 +33,4 @@ require_once '../controller/conn.php';
         </div>
     </div>
 </div>
-
-<?php
-$content = ob_get_clean();
-require_once '../main_navbar.php';
-?> 
+';

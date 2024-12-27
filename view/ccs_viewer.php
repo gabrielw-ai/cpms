@@ -1,22 +1,482 @@
 <?php
-// Change session_start() to check if session is already active
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 $page_title = "CCS Rules Viewer";
 ob_start();
-require_once '../controller/conn.php';
 
-// Get user's role and check if they are an agent
-$userRole = $_SESSION['user_role'] ?? '';
-$isAgent = ($userRole === 'Agent');
+require_once dirname(__DIR__) . '/routing.php';
+require_once dirname(__DIR__) . '/controller/conn.php';
+global $conn;
 
-// Debug log
-error_log("User Role: " . $userRole);
-error_log("Is Agent: " . ($isAgent ? 'Yes' : 'No'));
+// Add DataTables CSS
+$additional_css = '
+<!-- DataTables -->
+<link rel="stylesheet" href="' . Router::url('adminlte/plugins/datatables-bs4/css/dataTables.bootstrap4.min.css') . '">
+<link rel="stylesheet" href="' . Router::url('adminlte/plugins/datatables-responsive/css/responsive.bootstrap4.min.css') . '">
+<link rel="stylesheet" href="' . Router::url('adminlte/plugins/datatables-buttons/css/buttons.bootstrap4.min.css') . '">
+
+<style>
+    .card-tools {
+        float: right;
+    }
+    
+    .table thead th {
+        vertical-align: middle;
+        text-align: center;
+    }
+    
+    .table td {
+        vertical-align: middle;
+    }
+    
+    .input-group-text {
+        border-right: 0;
+    }
+    
+    .input-group .form-control {
+        border-left: 0;
+    }
+    
+    .dataTables_wrapper .dataTables_length {
+        margin-bottom: 1rem;
+    }
+    
+    /* Add these styles to fix table responsiveness */
+    .table-responsive {
+        width: 100%;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Ensure table takes full width */
+    .table {
+        width: 100% !important;
+        margin-bottom: 0;
+    }
+
+    /* Adjust content wrapper padding */
+    .content-wrapper {
+        transition: margin-left .3s ease-in-out;
+        margin-left: 250px;  /* Default with sidebar open */
+    }
+
+    /* Adjust when sidebar is collapsed */
+    body.sidebar-collapse .content-wrapper {
+        margin-left: 4.6rem;
+    }
+
+    @media (max-width: 768px) {
+        .content-wrapper {
+            margin-left: 0;
+        }
+    }
+
+    .btn-group .btn {
+        padding: 6px 12px;
+        line-height: 1.2;
+        margin: 0 2px;
+    }
+
+    .btn-group .btn i {
+        font-size: 16px;
+    }
+
+    .actions-column {
+        white-space: nowrap;
+        width: 120px;
+        text-align: center;
+        padding: 8px !important;
+    }
+
+    .actions-column .btn-group {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-sm {
+        height: 32px;
+        min-width: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .floating-alert {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 250px;
+        max-width: 350px;
+        animation: slideIn 0.5s ease-in-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    /* Add small spacing for pagination */
+    .dataTables_wrapper .row {
+        margin: 0;
+        padding: 8px 0;
+    }
+    
+    .dataTables_length, 
+    .dataTables_filter,
+    .dataTables_info, 
+    .dataTables_paginate {
+        padding: 8px;
+    }
+
+    /* Table column widths */
+    .table th:nth-last-child(3), /* Status column */
+    .table td:nth-last-child(3) {
+        width: 80px !important;
+        min-width: 80px !important;
+    }
+
+    .table th:nth-last-child(2), /* Doc column */
+    .table td:nth-last-child(2) {
+        width: 60px !important;
+        min-width: 60px !important;
+    }
+
+    .table th:last-child, /* Actions column */
+    .table td:last-child {
+        width: 100px !important;
+        min-width: 100px !important;
+    }
+
+    /* Center content in status, doc, and actions columns */
+    .table td:nth-last-child(-n+3) {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    /* Button group styling */
+    .btn-group .btn-sm {
+        padding: 0.25rem 0.5rem;
+    }
+
+    .btn-group .btn-sm i {
+        font-size: 0.875rem;
+    }
+
+    /* Simple button style for View link */
+    .btn-xs {
+        padding: 1px 5px;
+        font-size: 12px;
+        line-height: 1.5;
+        border-radius: 3px;
+    }
+
+    .btn-default {
+        color: #333;
+        background-color: #f8f9fa;
+        border: 1px solid #ddd;
+    }
+
+    .btn-default:hover {
+        background-color: #e9ecef;
+        border-color: #ccc;
+        text-decoration: none;
+    }
+
+    /* Select2 styling */
+    .select2-container--bootstrap4 .select2-selection--single {
+        height: calc(2.25rem + 2px) !important;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        line-height: 2.25rem !important;
+    }
+
+    .select2-container--bootstrap4 .select2-selection__arrow {
+        height: calc(2.25rem + 2px) !important;
+    }
+
+    /* Date picker styling */
+    .input-group-text {
+        border-left: none;
+    }
+
+    .form-control:focus + .input-group-append .input-group-text {
+        border-color: #80bdff;
+    }
+
+    /* Select2 Improvements */
+    .select2-container--bootstrap4 {
+        width: 100% !important;
+    }
+
+    .select2-container--bootstrap4 .select2-selection {
+        height: 38px !important;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single {
+        padding: 0.375rem 0.75rem;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        color: #495057;
+        line-height: 1.5;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+        height: 36px !important;
+        top: 0;
+        right: 0;
+        width: 20px;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow b {
+        border-color: #888 transparent transparent transparent;
+        border-style: solid;
+        border-width: 5px 4px 0 4px;
+        height: 0;
+        left: 50%;
+        margin-left: -4px;
+        margin-top: -2px;
+        position: absolute;
+        top: 50%;
+        width: 0;
+        display: block !important;
+    }
+
+    .select2-container--bootstrap4.select2-container--open .select2-selection--single .select2-selection__arrow b {
+        border-color: transparent transparent #888 transparent;
+        border-width: 0 4px 5px 4px;
+    }
+
+    .select2-container--bootstrap4 .select2-dropdown {
+        border-color: #80bdff;
+        border-radius: 4px;
+        margin-top: -1px;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option {
+        padding: 0.5rem 0.75rem;
+        font-size: 1rem;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
+        background-color: #007bff;
+        color: white;
+    }
+
+    /* Modal specific Select2 */
+    #editRuleModal .select2-container {
+        z-index: 1056;
+    }
+
+    #editRuleModal .select2-dropdown {
+        z-index: 1057;
+    }
+
+    /* Date Input Styling */
+    .input-group .form-control {
+        border-right: 0;
+    }
+
+    .input-group-text {
+        background-color: #fff;
+        border-left: 0;
+    }
+
+    .input-group:focus-within .form-control,
+    .input-group:focus-within .input-group-text {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    /* Modal Form Improvements */
+    .modal .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .modal .form-group label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    .modal .input-group {
+        flex-wrap: nowrap;
+    }
+
+    .modal input[type="date"] {
+        padding: 0.375rem 0.75rem;
+    }
+
+    /* Fix modal z-index */
+    .modal-backdrop {
+        z-index: 1040 !important;
+    }
+
+    .modal {
+        z-index: 1050 !important;
+    }
+
+    .select2-container {
+        z-index: 1060 !important;
+    }
+
+    /* Filter section styling */
+    .filter-section .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+        display: none !important;
+    }
+
+    .filter-section .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        padding-right: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    .filter-section .select2-container--bootstrap4 .select2-selection {
+        padding-right: 0.75rem !important;
+    }
+
+    /* Edit modal Select2 specific styles */
+    #editRuleModal .select2-container--bootstrap4 .select2-selection {
+        height: 38px !important;
+    }
+
+    #editRuleModal .select2-container--bootstrap4 .select2-selection--single {
+        padding: 0.375rem 0.75rem;
+    }
+
+    #editRuleModal .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        color: #495057;
+        line-height: 1.5;
+    }
+
+    #editRuleModal .select2-container--bootstrap4 .select2-results__option {
+        padding: 0.5rem 0.75rem;
+        font-size: 1rem;
+    }
+
+    #editRuleModal .select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
+        background-color: #007bff;
+        color: white;
+    }
+
+    /* Status badge styling */
+    .badge-success, .badge-danger {
+        color: #fff !important;
+        font-weight: 500;
+        padding: 0.4em 0.6em;
+    }
+
+    .badge-success {
+        background-color: #28a745 !important;  /* Green for expired */
+    }
+
+    .badge-danger {
+        background-color: #dc3545 !important;  /* Red for active */
+    }
+
+    /* Filter section styling */
+    .select2-container--bootstrap4 .select2-selection {
+        text-align: left !important;
+    }
+
+    .select2-container--bootstrap4 .select2-selection__rendered {
+        text-align: left !important;
+        padding-right: 0 !important;
+    }
+
+    .select2-container--bootstrap4 .select2-selection__arrow {
+        display: none !important;
+    }
+
+    /* Keep dropdown options left-aligned */
+    .select2-results__option {
+        text-align: left !important;
+    }
+
+    /* Center the filter labels */
+    .form-group label {
+        text-align: center !important;
+        width: 100%;
+    }
+
+    /* Make clear filters button text centered */
+    #clearFilters {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 38px;
+    }
+
+    /* Select2 text alignment */
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        padding-top: 5px !important;
+        padding-left: 12px !important;
+        text-align: left !important;
+        line-height: 1.5 !important;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option {
+        padding-left: 12px !important;
+        text-align: left !important;
+    }
+
+    /* Remove dropdown arrow */
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+        display: none !important;
+    }
+
+    /* Vertically center text */
+    .select2-container--bootstrap4 .select2-selection {
+        height: 38px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    /* Center placeholder text */
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder {
+        text-align: center !important;
+        width: 100% !important;
+    }
+</style>';
+
+// Add DataTables and AdminLTE JS
+$additional_js = '
+<!-- DataTables & Plugins -->
+<script src="' . Router::url('adminlte/plugins/datatables/jquery.dataTables.min.js') . '"></script>
+<script src="' . Router::url('adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js') . '"></script>
+<script src="' . Router::url('adminlte/plugins/datatables-responsive/js/dataTables.responsive.min.js') . '"></script>
+<script>
+var baseUrl = "' . Router::url('') . '";
+</script>
+<script src="' . Router::url('public/dist/js/ccs_viewer.js') . '"></script>';
+
+// Add Select2 CSS to your additional_css
+$additional_css .= '
+<!-- Select2 -->
+<link rel="stylesheet" href="' . Router::url('adminlte/plugins/select2/css/select2.min.css') . '">
+<link rel="stylesheet" href="' . Router::url('adminlte/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css') . '">';
+
+// Add Select2 JS to your additional_js
+$additional_js .= '
+<!-- Select2 -->
+<script src="' . Router::url('adminlte/plugins/select2/js/select2.full.min.js') . '"></script>';
 ?>
 
+<!-- Main content -->
+<section class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">CCS Rules Viewer</h3>
@@ -25,7 +485,7 @@ error_log("Is Agent: " . ($isAgent ? 'Yes' : 'No'));
         <!-- Notifications -->
         <?php if (isset($_SESSION['success'])): ?>
             <div class="alert alert-success alert-dismissible fade show py-2">
-                <button type="button" class="close" data-dismiss="alert" aria-hidden="true" style="padding: .5rem;">×</button>
+                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
                 <?php 
                 echo $_SESSION['success'];
                 unset($_SESSION['success']);
@@ -35,7 +495,7 @@ error_log("Is Agent: " . ($isAgent ? 'Yes' : 'No'));
 
         <?php if (isset($_SESSION['error'])): ?>
             <div class="alert alert-danger alert-dismissible fade show py-2">
-                <button type="button" class="close" data-dismiss="alert" aria-hidden="true" style="padding: .5rem;">×</button>
+                                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">&times;</button>
                 <?php 
                 echo $_SESSION['error'];
                 unset($_SESSION['error']);
@@ -43,92 +503,77 @@ error_log("Is Agent: " . ($isAgent ? 'Yes' : 'No'));
             </div>
         <?php endif; ?>
 
-        <!-- Update the filters section -->
-        <?php if (!$isAgent): ?>
-        <!-- Add filters section -->
-        <div class="filter-section mb-3">
+                        <!-- Filter section -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-body p-3">
             <div class="row">
                 <!-- Project Filter -->
-                <div class="col-md-2">
-                    <label>Project</label>
-                    <select class="form-control select2" id="projectFilter" data-placeholder="All Projects">
-                        <option value=""></option>
+                                            <div class="col-md-3">
+                                                <div class="form-group mb-0">
+                                                    <label class="mb-2">Project</label>
+                                                    <select class="form-control select2" id="projectFilter" style="width: 100%;">
+                                                        <option value="">All Projects</option>
                         <?php
-                        $stmt = $conn->query("SELECT DISTINCT project FROM ccs_rules ORDER BY project");
+                                                        $stmt = $conn->query("SELECT DISTINCT project FROM ccs_rules WHERE project IS NOT NULL ORDER BY project");
                         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                                            if (!empty($row['project'])) {
                             echo "<option value='" . htmlspecialchars($row['project']) . "'>" . 
                                  htmlspecialchars($row['project']) . "</option>";
+                                                            }
                         }
                         ?>
                     </select>
+                                                </div>
                 </div>
 
                 <!-- Role Filter -->
-                <div class="col-md-2">
-                    <label>Role</label>
-                    <select class="form-control select2" id="roleFilter" data-placeholder="All Roles">
-                        <option value=""></option>
+                                            <div class="col-md-3">
+                                                <div class="form-group mb-0">
+                                                    <label class="mb-2">Role</label>
+                                                    <select class="form-control select2" id="roleFilter" style="width: 100%;">
+                                                        <option value="">All Roles</option>
                         <?php
-                        $stmt = $conn->query("SELECT DISTINCT role FROM ccs_rules ORDER BY role");
+                                                        $stmt = $conn->query("SELECT DISTINCT role FROM ccs_rules WHERE role IS NOT NULL ORDER BY role");
                         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                                            if (!empty($row['role'])) {
                             echo "<option value='" . htmlspecialchars($row['role']) . "'>" . 
                                  htmlspecialchars($row['role']) . "</option>";
+                                                            }
                         }
                         ?>
                     </select>
                 </div>
-
-                <!-- Consequences Filter -->
-                <div class="col-md-2">
-                    <label>Consequences</label>
-                    <select class="form-control select2" id="consequencesFilter" data-placeholder="All Consequences">
-                        <option value=""></option>
-                        <option value="WR1">Written Reminder 1</option>
-                        <option value="WR2">Written Reminder 2</option>
-                        <option value="WR3">Written Reminder 3</option>
-                        <option value="WL1">Warning Letter 1</option>
-                        <option value="WL2">Warning Letter 2</option>
-                        <option value="WL3">Warning Letter 3</option>
-                        <option value="FLW">First & Last Warning Letter</option>
-                    </select>
                 </div>
 
                 <!-- Status Filter -->
-                <div class="col-md-2">
-                    <label>Status</label>
-                    <select class="form-control select2" id="statusFilter" data-placeholder="All Status">
-                        <option value=""></option>
+                                            <div class="col-md-3">
+                                                <div class="form-group mb-0">
+                                                    <label class="mb-2">Status</label>
+                                                    <select class="form-control select2" id="statusFilter" style="width: 100%;">
+                                                        <option value="">All Status</option>
                         <option value="active">Active</option>
-                        <option value="deactive">Deactive</option>
+                                                        <option value="expired">Expired</option>
                     </select>
-                </div>
-
-                <!-- Name/NIK Search -->
-                <div class="col-md-4">
-                    <label>Search Name/NIK</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" id="nameSearch" placeholder="Type to search...">
-                        <div class="input-group-append">
-                            <span class="input-group-text"><i class="fas fa-search"></i></span>
-                        </div>
-                    </div>
                 </div>
             </div>
 
             <!-- Clear Filters Button -->
-            <div class="row mt-2">
-                <div class="col-12">
-                    <button id="clearFilters" class="btn btn-secondary btn-sm">
-                        <i class="fas fa-eraser"></i> Clear Filters
+                                            <div class="col-md-3 d-flex align-items-end">
+                                                <button type="button" class="btn btn-secondary w-100" id="clearFilters" style="height: 38px;">
+                                                    Clear Filters
                     </button>
                 </div>
             </div>
         </div>
-        <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
 
         <!-- Table -->
         <div class="table-responsive">
-            <table id="ccsRulesTable" class="table table-bordered table-striped">
+                            <table id="rulesTable" class="table table-bordered table-striped">
                 <thead>
                     <tr>
                         <th>Project</th>
@@ -140,302 +585,90 @@ error_log("Is Agent: " . ($isAgent ? 'Yes' : 'No'));
                         <th>Consequences</th>
                         <th>Effective Date</th>
                         <th>End Date</th>
-                        <th>Status</th>
-                        <th>Supporting Doc</th>
-                        <?php if (!$isAgent): ?>
-                        <th>Actions</th>
-                        <?php endif; ?>
+                                        <th style="width: 80px;">Status</th>
+                                        <th style="width: 100px;">Doc</th>
+                                        <th style="width: 100px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php
-                    try {
-                        // Modify query based on user role
-                        if ($isAgent) {
-                            $stmt = $conn->prepare("SELECT * FROM ccs_rules WHERE NIK = ? ORDER BY effective_date DESC");
-                            $stmt->execute([$_SESSION['user_nik']]);
-                        } else {
-                            $stmt = $conn->query("SELECT * FROM ccs_rules ORDER BY effective_date DESC");
-                        }
-
-                        while ($row = ($isAgent ? $stmt->fetch(PDO::FETCH_ASSOC) : $stmt->fetch(PDO::FETCH_ASSOC))) {
-                            echo "<tr>";
-                            echo "<td>" . htmlspecialchars($row['project']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['nik']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['name']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['role']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['tenure']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['case_chronology']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['consequences']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['effective_date']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['end_date']) . "</td>";
-                            echo "<td><span class='badge badge-" . 
-                                 ($row['status'] === 'active' ? 'success' : 'danger') . "'>" . 
-                                 htmlspecialchars($row['status']) . "</span></td>";
-                            echo "<td>";
-                            if ($row['supporting_doc_url']) {
-                                echo "<a href='" . htmlspecialchars($row['supporting_doc_url']) . 
-                                     "' target='_blank' class='btn btn-sm btn-info'><i class='fas fa-file'></i> View</a>";
-                            }
-                            echo "</td>";
-                            
-                            // Only show action buttons for non-agents
-                            if (!$isAgent) {
-                                echo "<td>
-                                        <button type='button' class='btn btn-sm btn-primary' onclick='editRule(this)' 
-                                                data-id='" . $row['id'] . "'>
-                                            <i class='fas fa-edit'></i>
-                                        </button>
-                                        <button type='button' class='btn btn-sm btn-danger' onclick='deleteRule(" . $row['id'] . ")'>
-                                            <i class='fas fa-trash'></i>
-                                        </button>
-                                      </td>";
-                            }
-                            echo "</tr>";
-                        }
-                    } catch (PDOException $e) {
-                        echo "<tr><td colspan='" . ($isAgent ? '11' : '12') . "'>Error: " . $e->getMessage() . "</td></tr>";
-                    }
-                    ?>
+                                    <!-- Data loaded via DataTables -->
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+            </div>
+        </div>
+    </div>
+</section>
 
-<!-- Add DataTables CSS -->
-<?php
-$additional_css = '
-<link rel="stylesheet" href="../adminlte/plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
-<link rel="stylesheet" href="../adminlte/plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
-<link rel="stylesheet" href="../adminlte/plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
-<link rel="stylesheet" href="../adminlte/plugins/select2/css/select2.min.css">
-<link rel="stylesheet" href="../adminlte/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
-';
-
-$additional_js = '
-<script src="../adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="../adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
-<script src="../adminlte/plugins/datatables-responsive/js/responsive.bootstrap4.min.js"></script>
-<script src="../adminlte/plugins/datatables-fixedheader/js/dataTables.fixedHeader.min.js"></script>
-<script src="../adminlte/plugins/select2/js/select2.full.min.js"></script>
-';
-?>
-
-<!-- Add DataTables JS -->
-<script>
-// Define these functions globally
-function editRule(btn) {
-    const id = $(btn).data('id');
-    
-    // Fetch rule data
-    $.get(`../controller/get_rule.php?id=${id}`, function(data) {
-        if (data.success) {
-            // Fill the form
-            $('#edit_id').val(data.rule.id);
-            $('#edit_project').val(data.rule.project).trigger('change');
-            $('#edit_case_chronology').val(data.rule.case_chronology);
-            $('#edit_ccs_rule').val(data.rule.consequences);
-            $('#edit_effective_date').val(data.rule.effective_date);
-            $('#edit_end_date').val(data.rule.end_date);
-            
-            // Show modal
-            $('#editModal').modal('show');
-        } else {
-            alert('Error loading rule data');
-        }
-    });
-}
-
-function deleteRule(id) {
-    if (confirm('Are you sure you want to delete this rule?')) {
-        // Create and submit form for deletion
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '../controller/c_ccs_rules.php';
-
-        const actionInput = document.createElement('input');
-        actionInput.type = 'hidden';
-        actionInput.name = 'action';
-        actionInput.value = 'delete';
-
-        const idInput = document.createElement('input');
-        idInput.type = 'hidden';
-        idInput.name = 'id';
-        idInput.value = id;
-
-        form.appendChild(actionInput);
-        form.appendChild(idInput);
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
-// Your existing DOMContentLoaded event handler
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Select2
-    $('.select2').select2({
-        theme: 'bootstrap4',
-        width: '100%',
-        allowClear: true,
-        placeholder: 'Select an option'
-    });
-
-    // Initialize DataTable
-    var table = $('#ccsRulesTable').DataTable({
-        "responsive": true,
-        "pageLength": 20,
-        "lengthMenu": [[20, 50, 100, -1], [20, 50, 100, "All"]],
-        "dom": 
-            "<'row'<'col-sm-12 col-md-6'l><'col-sm-12 col-md-6'f>>" +
-            "<'row'<'col-sm-12'tr>>" +
-            "<'row'<'col-sm-12 col-md-5'i><'col-sm-12 col-md-7'p>>",
-        "scrollY": "500px",
-        "scrollX": true,
-        "scrollCollapse": true,
-        "fixedHeader": true,
-        "searching": true,
-        "autoWidth": false,
-        "order": [[7, "desc"]]
-    });
-
-    // Name/NIK search
-    $('#nameSearch').on('keyup', function() {
-        var searchText = $(this).val().toLowerCase();
-        table.search(searchText).draw();
-    });
-
-    // Project filter
-    $('#projectFilter').on('change', function() {
-        var val = $(this).val();
-        table.column(0).search(val ? val : '', true, false).draw();
-    });
-
-    // Role filter
-    $('#roleFilter').on('change', function() {
-        var val = $(this).val();
-        table.column(3).search(val ? val : '', true, false).draw();
-    });
-
-    // Consequences filter
-    $('#consequencesFilter').on('change', function() {
-        var val = $(this).val();
-        table.column(6).search(val ? val : '', true, false).draw();
-    });
-
-    // Status filter
-    $('#statusFilter').on('change', function() {
-        var val = $(this).val();
-        table.column(9).search(val ? val : '', true, false).draw();
-    });
-
-    // Clear filters
-    $('#clearFilters').on('click', function() {
-        // Clear select2 dropdowns
-        $('#projectFilter, #roleFilter, #consequencesFilter, #statusFilter').val(null).trigger('change');
-        
-        // Clear search box
-        $('#nameSearch').val('');
-        
-        // Clear all filters and search
-        table.search('').columns().search('').draw();
-    });
-
-    // Add function to calculate end date when effective date or CCS rule changes
-    $('#edit_effective_date, #edit_ccs_rule').on('change', function() {
-        const effectiveDate = $('#edit_effective_date').val();
-        const ccsRule = $('#edit_ccs_rule').val();
-        
-        if (effectiveDate && ccsRule) {
-            const startDate = new Date(effectiveDate);
-            let endDate = new Date(startDate);
-            
-            if (ccsRule.startsWith('WR')) {
-                endDate.setFullYear(endDate.getFullYear() + 1);
-                endDate.setDate(endDate.getDate() - 1);
-            } else {
-                endDate.setMonth(endDate.getMonth() + 6);
-                endDate.setDate(endDate.getDate() - 1);
-            }
-            
-            $('#edit_end_date').val(endDate.toISOString().split('T')[0]);
-        }
-    });
-});
-</script>
-
-<!-- Edit Modal -->
-<div class="modal fade" id="editModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<!-- Edit Rule Modal -->
+<div class="modal fade" id="editRuleModal" tabindex="-1">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Edit CCS Rule</h5>
+                <h5 class="modal-title">Edit Rule</h5>
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
-            <form id="editForm" action="../controller/c_ccs_rules.php" method="POST" enctype="multipart/form-data">
-                <input type="hidden" name="action" value="edit">
-                <input type="hidden" name="id" id="edit_id">
+            <form id="editRuleForm">
                 <div class="modal-body">
-                    <!-- Project -->
+                    <input type="hidden" id="edit_id" name="id">
+                    
+                    <!-- Display only fields -->
                     <div class="form-group">
-                        <label>Project</label>
-                        <select class="form-control select2" name="project" id="edit_project" required>
-                            <?php
-                            $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
-                            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                echo "<option value='" . htmlspecialchars($row['project_name']) . "'>" . 
-                                     htmlspecialchars($row['project_name']) . "</option>";
-                            }
-                            ?>
-                        </select>
+                        <label>NIK</label>
+                        <input type="text" class="form-control" id="edit_nik" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" class="form-control" id="edit_name" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <input type="text" class="form-control" id="edit_role" readonly>
                     </div>
 
-                    <!-- Case Chronology -->
+                    <!-- Editable fields -->
                     <div class="form-group">
                         <label>Case Chronology</label>
-                        <textarea class="form-control" name="case_chronology" id="edit_case_chronology" rows="3"></textarea>
+                        <textarea class="form-control" id="edit_case_chronology" name="case_chronology" rows="3" required></textarea>
                     </div>
-
-                    <!-- CCS Rule -->
                     <div class="form-group">
-                        <label>CCS Rule</label>
-                        <select class="form-control" name="ccs_rule" id="edit_ccs_rule" required>
-                            <option value="WR1">Written Reminder 1</option>
-                            <option value="WR2">Written Reminder 2</option>
-                            <option value="WR3">Written Reminder 3</option>
-                            <option value="WL1">Warning Letter 1</option>
-                            <option value="WL2">Warning Letter 2</option>
-                            <option value="WL3">Warning Letter 3</option>
-                            <option value="FLW">First & Last Warning Letter</option>
+                        <label>Consequences</label>
+                        <select class="form-control" id="edit_consequences" name="consequences" required>
+                            <option value="">Select Consequences</option>
+                            <option value="Written Reminder 1">Written Reminder 1</option>
+                            <option value="Written Reminder 2">Written Reminder 2</option>
+                            <option value="Written Reminder 3">Written Reminder 3</option>
+                            <option value="Warning Letter 1">Warning Letter 1</option>
+                            <option value="Warning Letter 2">Warning Letter 2</option>
+                            <option value="Warning Letter 3">Warning Letter 3</option>
+                            <option value="First & Last Warning Letter">First & Last Warning Letter</option>
                         </select>
                     </div>
-
-                    <!-- Effective Date -->
                     <div class="form-group">
                         <label>Effective Date</label>
-                        <input type="date" class="form-control" name="effective_date" id="edit_effective_date" required>
+                        <input type="date" class="form-control" id="edit_effective_date" name="effective_date" 
+                               max="<?php echo date('Y-m-d'); ?>" required>
                     </div>
-
-                    <!-- Add End Date (Read-only) -->
                     <div class="form-group">
                         <label>End Date</label>
-                        <input type="date" class="form-control" id="edit_end_date" readonly>
-                        <small class="form-text text-muted">End date is automatically calculated based on CCS Rule type</small>
+                        <input type="date" class="form-control" id="edit_end_date" name="end_date" required readonly>
                     </div>
-
-                    <!-- Supporting Document -->
                     <div class="form-group">
-                        <label>Supporting Document (Optional)</label>
+                        <label>Supporting Document</label>
+                        <div class="input-group">
                         <div class="custom-file">
-                            <input type="file" class="custom-file-input" name="document" id="edit_document" accept=".pdf,.xlsx,.xls">
-                            <label class="custom-file-label">Choose file</label>
+                                <input type="file" class="custom-file-input" id="edit_supporting_doc" name="supporting_doc">
+                                <label class="custom-file-label" for="edit_supporting_doc">Choose file</label>
+                            </div>
                         </div>
                         <small class="form-text text-muted">Leave empty to keep existing document</small>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-primary">Update</button>
+                    <button type="submit" class="btn btn-primary">Update Rule</button>
                 </div>
             </form>
         </div>
@@ -444,83 +677,4 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <?php
 $content = ob_get_clean();
-require_once '../main_navbar.php';
 ?>
-
-<style>
-/* Add to your existing styles */
-.select2-container--bootstrap4.select2-container--focus .select2-selection {
-    border-color: #80bdff;
-    box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
-}
-
-.filter-section {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 4px;
-    margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.filter-section label {
-    font-weight: 500;
-    color: #555;
-    margin-bottom: 0.3rem;
-}
-
-.filter-section .select2-container--bootstrap4 .select2-selection {
-    border-radius: 4px;
-}
-
-#clearFilters {
-    margin-top: 10px;
-}
-
-#nameSearch {
-    height: calc(2.25rem + 2px);
-}
-
-.input-group-text {
-    background-color: #fff;
-    border-left: none;
-}
-
-#nameSearch {
-    border-right: none;
-}
-
-.dataTables_scroll {
-    margin-bottom: 15px;
-}
-
-.dataTables_scrollHead {
-    background: white;
-    position: sticky !important;
-    top: 0;
-    z-index: 1;
-}
-
-.dataTables_scrollBody {
-    position: relative;
-}
-
-.table thead th {
-    position: sticky;
-    top: 0;
-    background: white;
-    z-index: 1;
-}
-
-.table-responsive {
-    overflow-x: visible;  /* Allow horizontal scroll when needed */
-}
-
-/* Ensure proper spacing for info and pagination */
-.dataTables_info {
-    padding-top: 0.5em;
-}
-
-.dataTables_paginate {
-    padding-top: 0.5em;
-}
-</style>

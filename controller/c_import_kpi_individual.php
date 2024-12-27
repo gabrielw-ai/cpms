@@ -1,15 +1,30 @@
 <?php
 require_once 'conn.php';
 require 'vendor/autoload.php';
+global $conn;
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
+// Add error logging
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+error_log("Starting c_import_kpi_individual.php");
+
+// Clean any output buffer
+ob_clean();
+
+// Ensure clean headers
 header('Content-Type: application/json');
+header('Cache-Control: no-cache, must-revalidate');
 
 try {
-    if (!isset($_FILES['file'])) {
-        throw new Exception('No file uploaded');
+    if (!isset($_FILES['file']) || !isset($_POST['project'])) {
+        throw new Exception('Missing required parameters');
     }
+
+    $project = $_POST['project'];
+    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project)) . "_INDIVIDUAL_MON";
     
     $inputFileName = $_FILES['file']['tmp_name'];
     $spreadsheet = IOFactory::load($inputFileName);
@@ -22,21 +37,6 @@ try {
     // Begin transaction
     $conn->beginTransaction();
     
-    $monthMapping = [
-        'January' => 'january',
-        'February' => 'february',
-        'March' => 'march',
-        'April' => 'april',
-        'May' => 'may',
-        'June' => 'june',
-        'July' => 'july',
-        'August' => 'august',
-        'September' => 'september',
-        'October' => 'october',
-        'November' => 'november',
-        'December' => 'december'
-    ];
-    
     $processed = 0;
     $errors = [];
     
@@ -48,27 +48,15 @@ try {
             $name = trim($row[1]);
             $kpiMetrics = trim($row[2]);
             $queue = trim($row[3]);
-            $month = trim($row[4]);
-            $value = trim($row[5]);
             
-            if (!isset($monthMapping[$month])) {
-                throw new Exception("Invalid month format: $month");
-            }
-            
-            $monthColumn = strtolower($monthMapping[$month]);
-            
-            error_log("Processing row " . ($index + 2) . ": " . json_encode([
-                'nik' => $nik,
-                'name' => $name,
-                'kpi' => $kpiMetrics,
-                'queue' => $queue,
-                'month' => $monthColumn,
-                'value' => $value
-            ]));
+            // Process monthly values (columns 4-15)
+            $monthlyValues = array_slice($row, 4, 12);
+            $months = ['january', 'february', 'march', 'april', 'may', 'june', 
+                      'july', 'august', 'september', 'october', 'november', 'december'];
             
             // Check if record exists
             $stmt = $conn->prepare("
-                SELECT id FROM individual_staging 
+                SELECT id FROM `$tableName` 
                 WHERE NIK = ? AND kpi_metrics = ? AND queue = ?
             ");
             $stmt->execute([$nik, $kpiMetrics, $queue]);
@@ -76,21 +64,42 @@ try {
             
             if ($exists) {
                 // Update existing record
-                $sql = "UPDATE individual_staging SET 
-                        employee_name = ?,
-                        $monthColumn = ?
-                        WHERE NIK = ? AND kpi_metrics = ? AND queue = ?";
-                $params = [$name, $value, $nik, $kpiMetrics, $queue];
+                $updates = [];
+                $params = [];
+                foreach ($months as $i => $month) {
+                    if (isset($monthlyValues[$i]) && $monthlyValues[$i] !== '') {
+                        $updates[] = "`$month` = ?";
+                        $params[] = floatval($monthlyValues[$i]);
+                    }
+                }
+                
+                if (!empty($updates)) {
+                    $sql = "UPDATE `$tableName` SET " . implode(", ", $updates) . 
+                           " WHERE NIK = ? AND kpi_metrics = ? AND queue = ?";
+                    $params = array_merge($params, [$nik, $kpiMetrics, $queue]);
+                    
+                    $stmt = $conn->prepare($sql);
+                    $stmt->execute($params);
+                }
             } else {
                 // Insert new record
-                $sql = "INSERT INTO individual_staging 
-                        (NIK, employee_name, kpi_metrics, queue, $monthColumn) 
-                        VALUES (?, ?, ?, ?, ?)";
-                $params = [$nik, $name, $kpiMetrics, $queue, $value];
+                $columns = ['NIK', 'employee_name', 'kpi_metrics', 'queue'];
+                $values = [$nik, $name, $kpiMetrics, $queue];
+                
+                foreach ($months as $i => $month) {
+                    if (isset($monthlyValues[$i]) && $monthlyValues[$i] !== '') {
+                        $columns[] = "`$month`";
+                        $values[] = floatval($monthlyValues[$i]);
+                    }
+                }
+                
+                $sql = "INSERT INTO `$tableName` (" . implode(", ", $columns) . ") 
+                        VALUES (" . str_repeat("?,", count($values)-1) . "?)";
+                
+                $stmt = $conn->prepare($sql);
+                $stmt->execute($values);
             }
             
-            $stmt = $conn->prepare($sql);
-            $stmt->execute($params);
             $processed++;
             
         } catch (Exception $e) {
@@ -100,12 +109,12 @@ try {
     
     if (empty($errors)) {
         $conn->commit();
-        echo json_encode([
+        die(json_encode([
             'success' => true,
             'message' => "Successfully processed $processed records"
-        ]);
+        ]));
     } else {
-        throw new Exception("Errors occurred:\n" . implode("\n", $errors));
+        throw new Exception(implode("\n", $errors));
     }
     
 } catch (Exception $e) {
@@ -113,8 +122,8 @@ try {
         $conn->rollBack();
     }
     error_log("Import error: " . $e->getMessage());
-    echo json_encode([
+    die(json_encode([
         'success' => false,
-        'error' => $e->getMessage()
-    ]);
+        'message' => $e->getMessage()
+    ]));
 } 

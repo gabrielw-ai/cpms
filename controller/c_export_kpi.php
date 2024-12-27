@@ -8,9 +8,18 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 if (isset($_GET['table'])) {
     try {
         $tableName = $_GET['table'];
-        // Remove any duplicate _MON suffixes
-        $tableName = preg_replace('/_MON_MON$/', '_MON', $tableName);
-        $viewType = (strpos($tableName, '_MON') !== false) ? 'monthly' : 'weekly';
+        $viewType = isset($_GET['view']) && $_GET['view'] === 'monthly' ? 'monthly' : 'weekly';
+        
+        // Set table names based on view type - same as DataTables
+        if ($viewType === 'monthly') {
+            $kpiTable = $tableName . "_MON";  // Use _MON table for KPI definitions
+            $valuesTable = $tableName . "_MON_VALUES";
+            $periodColumn = 'month';
+        } else {
+            $kpiTable = $tableName;  // Use base table for KPI definitions
+            $valuesTable = $tableName . "_VALUES";
+            $periodColumn = 'week';
+        }
         
         // Create new Spreadsheet object
         $spreadsheet = new Spreadsheet();
@@ -40,27 +49,17 @@ if (isset($_GET['table'])) {
             $periodCount = 52;
         }
         
-        // Get data with JOIN - update the query to handle both weekly and monthly
-        if ($viewType === 'monthly') {
-            $sql = "SELECT k.queue, k.kpi_metrics, k.target, k.target_type, 
-                           v.month, v.value
-                    FROM `$tableName` k
-                    LEFT JOIN `{$tableName}_VALUES` v ON k.id = v.kpi_id
-                    ORDER BY k.queue, k.kpi_metrics, v.month";
-        } else {
-            $sql = "SELECT k.queue, k.kpi_metrics, k.target, k.target_type, 
-                           v.week, v.value
-                    FROM `$tableName` k
-                    LEFT JOIN `{$tableName}_VALUES` v ON k.id = v.kpi_id
-                    ORDER BY k.queue, k.kpi_metrics, v.week";
-        }
+        // Get data with JOIN - using same query as DataTables
+        $sql = "SELECT k.queue, k.kpi_metrics, k.target, k.target_type, 
+                       v.{$periodColumn}, v.value
+                FROM `$kpiTable` k
+                LEFT JOIN `{$valuesTable}` v ON k.id = v.kpi_id
+                ORDER BY k.queue, k.kpi_metrics, v.{$periodColumn}";
         
         $stmt = $conn->query($sql);
         $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // Process data into rows
-        $currentRow = 2;
-        $currentKPI = null;
+        // Process data into rows - same logic as DataTables
         $rowData = [];
         
         foreach ($data as $row) {
@@ -76,14 +75,15 @@ if (isset($_GET['table'])) {
                 ];
             }
             
-            // Store value using the correct period (week or month)
-            $period = $viewType === 'monthly' ? $row['month'] : $row['week'];
+            // Store value using the correct period
+            $period = $row[$periodColumn];
             if ($period !== null) {
                 $rowData[$kpiKey]['values'][$period] = $row['value'];
             }
         }
         
         // Write data to sheet
+        $currentRow = 2;
         foreach ($rowData as $row) {
             $sheet->setCellValue('A' . $currentRow, $row['queue']);
             $sheet->setCellValue('B' . $currentRow, $row['kpi_metrics']);
@@ -127,6 +127,10 @@ if (isset($_GET['table'])) {
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment;filename="' . $tableName . '_export.xlsx"');
         header('Cache-Control: max-age=0');
+        
+        // Before creating the Excel file
+        $rowCount = count($rowData);
+        $_SESSION['success'] = "Success to export $rowCount rows";
         
         // Save to output
         $writer->save('php://output');

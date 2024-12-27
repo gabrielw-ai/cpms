@@ -1,56 +1,74 @@
 <?php
-require_once 'conn.php';
+session_start();
+require_once dirname(__DIR__) . '/controller/conn.php';
 header('Content-Type: application/json');
 
 try {
-    // Check required parameters
-    if (!isset($_POST['id']) || !isset($_POST['project'])) {
-        throw new Exception('Missing required parameters');
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        throw new Exception('Invalid request method');
     }
 
-    $id = $_POST['id'];
-    $project = $_POST['project'];
-    $queue = $_POST['queue'] ?? '';
-    $kpi_metrics = $_POST['kpi_metrics'] ?? '';
-    $target = $_POST['target'] ?? '';
-    $target_type = $_POST['target_type'] ?? '';
+    // Validate required fields
+    $required_fields = ['id', 'case_chronology', 'consequences', 
+                       'effective_date', 'end_date'];
+    
+    foreach ($required_fields as $field) {
+        if (!isset($_POST[$field])) {
+            throw new Exception("Missing required field: $field");
+        }
+    }
 
-    // Create table name
-    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project));
+    // Handle file upload if new file is provided
+    $supporting_doc_sql = '';
+    $params = [
+        ':id' => $_POST['id'],
+        ':case_chronology' => $_POST['case_chronology'],
+        ':consequences' => $_POST['consequences'],
+        ':effective_date' => $_POST['effective_date'],
+        ':end_date' => $_POST['end_date']
+    ];
 
-    // Update KPI
-    $sql = "UPDATE `$tableName` SET 
-            queue = :queue,
-            kpi_metrics = :kpi_metrics,
-            target = :target,
-            target_type = :target_type
-            WHERE id = :id";
+    if (!empty($_FILES['supporting_doc']['name'])) {
+        $upload_dir = 'uploads/supporting_docs/';
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+
+        $file_ext = pathinfo($_FILES['supporting_doc']['name'], PATHINFO_EXTENSION);
+        $file_name = uniqid('doc_') . '.' . $file_ext;
+        $file_path = $upload_dir . $file_name;
+
+        if (move_uploaded_file($_FILES['supporting_doc']['tmp_name'], $file_path)) {
+            $supporting_doc_sql = ', supporting_doc_url = :supporting_doc_url';
+            $params[':supporting_doc_url'] = $file_path;
+        }
+    }
+
+    $sql = "UPDATE ccs_rules SET 
+            case_chronology = :case_chronology,
+            consequences = :consequences,
+            effective_date = :effective_date,
+            end_date = :end_date" . 
+            $supporting_doc_sql . 
+            " WHERE id = :id";
 
     $stmt = $conn->prepare($sql);
-    $stmt->execute([
-        ':queue' => $queue,
-        ':kpi_metrics' => $kpi_metrics,
-        ':target' => $target,
-        ':target_type' => $target_type,
-        ':id' => $id
-    ]);
+    $result = $stmt->execute($params);
 
-    if ($stmt->rowCount() > 0) {
+    if ($result) {
         echo json_encode([
             'success' => true,
-            'message' => 'KPI updated successfully'
+            'message' => 'Rule updated successfully'
         ]);
     } else {
-        echo json_encode([
-            'success' => false,
-            'error' => 'No changes made or KPI not found'
-        ]);
+        throw new Exception('Failed to update rule');
     }
 
 } catch (Exception $e) {
+    error_log("Error in c_viewer_update.php: " . $e->getMessage());
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'message' => $e->getMessage()
     ]);
 }
 ?>

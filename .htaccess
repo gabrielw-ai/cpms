@@ -1,0 +1,13 @@
+RewriteEngine On
+RewriteBase /cpms/
+
+# Allow direct access to assets
+RewriteRule ^adminlte/ - [L]
+RewriteRule ^assets/ - [L]
+
+# Allow direct access to actual files
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Route everything else through index.php
+RewriteRule ^(.*)$ index.php [QSA,L]

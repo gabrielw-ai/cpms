@@ -1,127 +1,77 @@
 <?php
 require_once 'conn.php';
+require_once dirname(__DIR__) . '/routing.php';
+global $conn;
 
-// Function to create role_mgmt table if it doesn't exist
-function createRoleTable($conn) {
-    try {
-        $sql = "CREATE TABLE IF NOT EXISTS role_mgmt (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            role VARCHAR(50) NOT NULL UNIQUE
-        )";
-        
-        $conn->exec($sql);
-        return true;
-    } catch (PDOException $e) {
-        error_log("Error creating role table: " . $e->getMessage());
-        return false;
-    }
-}
-
-// Function to add new role
-function addRole($conn, $role) {
-    try {
-        $sql = "INSERT INTO role_mgmt (role) VALUES (:role)";
-        $stmt = $conn->prepare($sql);
-        return $stmt->execute([':role' => $role]);
-    } catch (PDOException $e) {
-        error_log("Error adding role: " . $e->getMessage());
-        return false;
-    }
-}
-
-// Function to update role
-function updateRole($conn, $id, $role) {
-    try {
-        $sql = "UPDATE role_mgmt SET role = :role WHERE id = :id";
-        $stmt = $conn->prepare($sql);
-        return $stmt->execute([':id' => $id, ':role' => $role]);
-    } catch (PDOException $e) {
-        error_log("Error updating role: " . $e->getMessage());
-        return false;
-    }
-}
-
-// Function to delete role
-function deleteRole($conn, $id) {
-    try {
-        $sql = "DELETE FROM role_mgmt WHERE id = :id";
-        $stmt = $conn->prepare($sql);
-        return $stmt->execute([':id' => $id]);
-    } catch (PDOException $e) {
-        error_log("Error deleting role: " . $e->getMessage());
-        return false;
-    }
-}
-
-// Function to get all roles
-function getAllRoles($conn) {
-    try {
-        $sql = "SELECT * FROM role_mgmt ORDER BY role";
-        $stmt = $conn->query($sql);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Error getting roles: " . $e->getMessage());
-        return [];
-    }
-}
-
-// Function to get role by ID
-function getRoleById($conn, $id) {
-    try {
-        $sql = "SELECT * FROM role_mgmt WHERE id = :id";
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([':id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Error getting role: " . $e->getMessage());
-        return null;
-    }
-}
-
-// Handle POST requests
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
+// Create role_mgmt table if it doesn't exist
+try {
+    $sql = "CREATE TABLE IF NOT EXISTS role_mgmt (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        role VARCHAR(50) NOT NULL UNIQUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )";
     
-    switch ($action) {
-        case 'add':
-            if (!empty($_POST['role'])) {
-                if (addRole($conn, $_POST['role'])) {
-                    header('Location: ../view/role_mgmt.php?success=added');
-                } else {
-                    header('Location: ../view/role_mgmt.php?error=add_failed');
-                }
-            } else {
-                header('Location: ../view/role_mgmt.php?error=role_required');
-            }
-            break;
-            
-        case 'update':
-            if (!empty($_POST['id']) && !empty($_POST['role'])) {
-                if (updateRole($conn, $_POST['id'], $_POST['role'])) {
-                    header('Location: ../view/role_mgmt.php?success=updated');
-                } else {
-                    header('Location: ../view/role_mgmt.php?error=update_failed');
-                }
-            } else {
-                header('Location: ../view/role_mgmt.php?error=invalid_data');
-            }
-            break;
-            
-        case 'delete':
-            if (!empty($_POST['id'])) {
-                if (deleteRole($conn, $_POST['id'])) {
-                    header('Location: ../view/role_mgmt.php?success=deleted');
-                } else {
-                    header('Location: ../view/role_mgmt.php?error=delete_failed');
-                }
-            } else {
-                header('Location: ../view/role_mgmt.php?error=invalid_id');
-            }
-            break;
+    $conn->exec($sql);
+    
+    // Insert default roles if table is empty
+    $checkSql = "SELECT COUNT(*) FROM role_mgmt";
+    $count = $conn->query($checkSql)->fetchColumn();
+    
+    if ($count == 0) {
+        $defaultRoles = [
+            'Super_User',
+            'Team_Leader',
+            'Agent'
+        ];
+        
+        $insertSql = "INSERT INTO role_mgmt (role) VALUES (?)";
+        $stmt = $conn->prepare($insertSql);
+        
+        foreach ($defaultRoles as $role) {
+            $stmt->execute([$role]);
+        }
     }
-    exit;
-}
 
-// Create table if it doesn't exist
-createRoleTable($conn);
+    // Handle POST requests for CRUD operations
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $action = $_POST['action'] ?? '';
+        
+        switch ($action) {
+            case 'add':
+                if (empty($_POST['role'])) {
+                    throw new Exception('Role name is required');
+                }
+                $stmt = $conn->prepare("INSERT INTO role_mgmt (role) VALUES (?)");
+                $stmt->execute([$_POST['role']]);
+                header('Location: ' . Router::url('roles') . '?success=added');
+                break;
+                
+            case 'update':
+                if (empty($_POST['id']) || empty($_POST['role'])) {
+                    throw new Exception('Role ID and name are required');
+                }
+                $stmt = $conn->prepare("UPDATE role_mgmt SET role = ? WHERE id = ?");
+                $stmt->execute([$_POST['role'], $_POST['id']]);
+                header('Location: ' . Router::url('roles') . '?success=updated');
+                break;
+                
+            case 'delete':
+                if (empty($_POST['id'])) {
+                    throw new Exception('Role ID is required');
+                }
+                $stmt = $conn->prepare("DELETE FROM role_mgmt WHERE id = ?");
+                $stmt->execute([$_POST['id']]);
+                header('Location: ' . Router::url('roles') . '?success=deleted');
+                break;
+                
+            default:
+                throw new Exception('Invalid action');
+        }
+    }
+
+} catch (Exception $e) {
+    error_log("Error in role management: " . $e->getMessage());
+    header('Location: ' . Router::url('roles') . '?error=' . urlencode($e->getMessage()));
+}
 ?>

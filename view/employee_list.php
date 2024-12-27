@@ -1,16 +1,29 @@
 <?php
 session_start();
+require_once dirname(__DIR__) . '/routing.php';
+require_once dirname(__DIR__) . '/controller/conn.php';
+global $conn;
+
+// Add this function definition
+function getAllRoles($conn) {
+    try {
+        $stmt = $conn->query("SELECT DISTINCT role FROM employee_active ORDER BY role");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        return [];
+    }
+}
+
 $page_title = "Employee List";
 ob_start();
-require_once '../controller/conn.php';
-require_once '../controller/c_role_mgmt.php';
+
 
 // Add DataTables CSS to additional_css variable
 $additional_css = '
-<!-- DataTables CSS -->
-<link rel="stylesheet" href="../adminlte/plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
-<link rel="stylesheet" href="../adminlte/plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
-<link rel="stylesheet" href="../adminlte/plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
+<!-- DataTables -->
+<link rel="stylesheet" href="adminlte/plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" href="adminlte/plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
+<link rel="stylesheet" href="adminlte/plugins/datatables-buttons/css/buttons.bootstrap4.min.css">
 
 <style>
     .card-tools {
@@ -126,22 +139,38 @@ $additional_css = '
     }
 
     .btn-group .btn {
-        padding: 4px 8px;
-        line-height: 1;
+        padding: 6px 12px;
+        line-height: 1.2;
+        margin: 0 2px;
     }
 
     .btn-group .btn i {
-        font-size: 14px;
+        font-size: 16px;
     }
 
     .actions-column {
         white-space: nowrap;
-        width: 100px;
+        width: 120px;
         text-align: center;
+        padding: 8px !important;
     }
 
     .actions-column .btn-group {
         display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-sm {
+        height: 32px;
+        min-width: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .table td {
+        vertical-align: middle !important;
     }
 
     .floating-alert {
@@ -170,9 +199,9 @@ $additional_css = '
 // Add DataTables and AdminLTE JS to additional_js variable
 $additional_js = '
 <!-- DataTables & Plugins -->
-<script src="../adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="../adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
-<script src="../adminlte/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script src="adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+<script src="adminlte/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
 ';
 ?>
 
@@ -189,7 +218,7 @@ $additional_js = '
                     <button type="button" class="btn btn-primary ml-2" data-toggle="modal" data-target="#addEmployeeModal">
                         <i class="fas fa-plus mr-2"></i>Add Employee
                     </button>
-                    <a href="../controller/c_export_employee.php" class="btn btn-success ml-2">
+                    <a href="<?php echo Router::url('employee/export'); ?>" class="btn btn-success ml-2">
                         <i class="fas fa-file-excel mr-2"></i>Export Excel
                     </a>
                     <button type="button" class="btn btn-info ml-2" data-toggle="modal" data-target="#importModal">
@@ -366,11 +395,11 @@ $additional_js = '
 </div>
 
 <!-- REQUIRED SCRIPTS -->
-<script src="../adminlte/plugins/jquery/jquery.min.js"></script>
-<script src="../adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="../adminlte/dist/js/adminlte.min.js"></script>
-<script src="../adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="../adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+<script src="adminlte/plugins/jquery/jquery.min.js"></script>
+<script src="adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="adminlte/dist/js/adminlte.min.js"></script>
+<script src="adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -476,7 +505,7 @@ document.getElementById('bulkDeleteBtn').addEventListener('click', function() {
         if (confirm('Delete ' + selectedNIKs.length + ' selected employees?')) {
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = '../controller/c_employeelist.php';
+            form.action = '<?php echo Router::url('employee/delete'); ?>';
 
             const actionInput = document.createElement('input');
             actionInput.type = 'hidden';
@@ -511,6 +540,7 @@ function editEmployee(btn) {
     const data = btn.dataset;
     
     // Fill the edit modal with data
+    document.getElementById('edit_original_nik').value = data.nik;
     document.getElementById('edit_nik').value = data.nik;
     document.getElementById('edit_name').value = data.name;
     document.getElementById('edit_email').value = data.email;
@@ -526,7 +556,7 @@ function deleteEmployee(nik) {
     if (confirm('Are you sure you want to delete this employee?')) {
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = '../controller/c_employeelist.php';
+        form.action = '<?php echo Router::url('employee/delete'); ?>';
         
         const inputs = {
             'action': 'delete',
@@ -555,7 +585,7 @@ function deleteEmployee(nik) {
                 <h5 class="modal-title">Add New Employee</h5>
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
-            <form action="../controller/c_employeelist.php" method="POST">
+            <form action="<?php echo Router::url('employee/add'); ?>" method="POST">
                 <input type="hidden" name="action" value="add">
                 <div class="modal-body">
                     <div class="form-group">
@@ -619,10 +649,14 @@ function deleteEmployee(nik) {
                 <h5 class="modal-title">Edit Employee</h5>
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
-            <form action="../controller/c_employeelist.php" method="POST">
+            <form action="<?php echo Router::url('employee/edit'); ?>" method="POST">
                 <input type="hidden" name="action" value="edit">
-                <input type="hidden" name="nik" id="edit_nik">
+                <input type="hidden" name="original_nik" id="edit_original_nik">
                 <div class="modal-body">
+                    <div class="form-group">
+                        <label>NIK</label>
+                        <input type="text" class="form-control" name="nik" id="edit_nik" required>
+                    </div>
                     <div class="form-group">
                         <label>Name</label>
                         <input type="text" class="form-control" name="name" id="edit_name" required>
@@ -680,7 +714,7 @@ function deleteEmployee(nik) {
                 <h5 class="modal-title">Import Employee Data</h5>
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
-            <form action="../controller/c_import_employee.php" method="POST" enctype="multipart/form-data">
+            <form action="<?php echo Router::url('employee/import'); ?>" method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="form-group">
                         <label>Excel File (.xlsx)</label>
@@ -689,7 +723,7 @@ function deleteEmployee(nik) {
                             <label class="custom-file-label">Choose file</label>
                         </div>
                         <small class="form-text text-muted">
-                            Download the template <a href="../controller/c_export_employee.php?template=1">here</a>
+                            Download the template <a href="<?php echo Router::url('employee/export'); ?>?template=1">here</a>
                         </small>
                     </div>
                 </div>
@@ -704,5 +738,5 @@ function deleteEmployee(nik) {
 
 <?php
 $content = ob_get_clean();
-require_once '../main_navbar.php';
+//require_once '../main_navbar.php';
 ?>

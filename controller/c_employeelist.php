@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'conn.php';
+require_once dirname(__DIR__) . '/routing.php';
 
 // Function to create table
 function createEmployeeTable($conn) {
@@ -103,19 +104,21 @@ function addEmployee($conn, $data) {
 }
 
 // Function to update employee
-function updateEmployee($conn, $nik, $data) {
+function updateEmployee($conn, $originalNik, $data) {
     try {
         $sql = "UPDATE employee_active 
-                SET employee_name = :name,
+                SET NIK = :new_nik,
+                    employee_name = :name,
                     employee_email = :email,
                     role = :role,
                     project = :project,
                     join_date = :join_date
-                WHERE NIK = :nik";
+                WHERE NIK = :original_nik";
         
         $stmt = $conn->prepare($sql);
         return $stmt->execute([
-            ':nik' => $nik,
+            ':new_nik' => $data['nik'],
+            ':original_nik' => $originalNik,
             ':name' => $data['name'],
             ':email' => $data['email'],
             ':role' => $data['role'],
@@ -123,6 +126,7 @@ function updateEmployee($conn, $nik, $data) {
             ':join_date' => $data['join_date']
         ]);
     } catch (PDOException $e) {
+        error_log("Error in updateEmployee: " . $e->getMessage());
         return false;
     }
 }
@@ -179,11 +183,20 @@ function validateEmployeeData($data, $conn, $isUpdate = false) {
         $errors[] = "NIK is required";
     } elseif (!is_numeric($data['nik'])) {
         $errors[] = "NIK must be numeric";
-    } elseif (!$isUpdate && checkNIKExists($conn, $data['nik'])) {
+    } elseif ($isUpdate) {
+        // For updates, check if the new NIK is different from original and not already in use
+        if ($data['nik'] !== $data['original_nik']) {
+            $stmt = $conn->prepare("SELECT COUNT(*) FROM employee_active WHERE NIK = ?");
+            $stmt->execute([$data['nik']]);
+            if ($stmt->fetchColumn() > 0) {
+                $errors[] = "This NIK already exists";
+            }
+        }
+    } elseif (checkNIKExists($conn, $data['nik'])) {
         $errors[] = "This NIK already exists";
     }
     
-    // Rest of your validations...
+    // Rest of validations...
     if (empty($data['name'])) $errors[] = "Name is required";
     if (empty($data['email'])) $errors[] = "Email is required";
     if (empty($data['role'])) $errors[] = "Role is required";
@@ -208,34 +221,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         addEmployee($conn, $_POST);
                         $_SESSION['success'] = "Employee added successfully";
-                        header('Location: ../view/employee_list.php?success=added');
+                        header('Location: ' . Router::url('employees') . '?success=added');
+                        exit();
                     } catch (PDOException $e) {
                         $_SESSION['error'] = "Database Error: " . $e->getMessage();
-                        header('Location: ../view/employee_list.php?error=' . urlencode($e->getMessage()));
+                        header('Location: ' . Router::url('employees') . '?error=' . urlencode($e->getMessage()));
+                        exit();
                     }
                 } else {
                     $_SESSION['error'] = implode(', ', $errors);
-                    header('Location: ../view/employee_list.php?error=' . urlencode(implode(', ', $errors)));
+                    header('Location: ' . Router::url('employees') . '?error=' . urlencode(implode(', ', $errors)));
+                    exit();
                 }
             } catch (Exception $e) {
                 $_SESSION['error'] = "Error: " . $e->getMessage();
-                header('Location: ../view/employee_list.php?error=' . urlencode($e->getMessage()));
+                header('Location: ' . Router::url('employees') . '?error=' . urlencode($e->getMessage()));
+                exit();
             }
             break;
             
-        case 'update':
+        case 'edit':
             $errors = validateEmployeeData($_POST, $conn, true);
             if (empty($errors)) {
-                if (updateEmployee($conn, $_POST['nik'], $_POST)) {
+                if (updateEmployee($conn, $_POST['original_nik'], $_POST)) {
                     $_SESSION['success'] = "Employee updated successfully";
-                    header('Location: ../view/employee_list.php?success=updated');
+                    header('Location: ' . Router::url('employees') . '?success=updated');
+                    exit();
                 } else {
                     $_SESSION['error'] = "Failed to update employee";
-                    header('Location: ../view/employee_list.php?error=update_failed');
+                    header('Location: ' . Router::url('employees') . '?error=update_failed');
+                    exit();
                 }
             } else {
                 $_SESSION['error'] = implode(', ', $errors);
-                header('Location: ../view/employee_list.php?error=' . urlencode(implode(', ', $errors)));
+                header('Location: ' . Router::url('employees') . '?error=' . urlencode(implode(', ', $errors)));
+                exit();
             }
             break;
             
@@ -250,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (Exception $e) {
                     $_SESSION['error'] = "Error: " . $e->getMessage();
                 }
-                header('Location: ../view/employee_list.php');
+                header('Location: ' . Router::url('employees'));
                 exit();
             }
             break;
@@ -286,7 +306,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $conn->rollBack();
                     $_SESSION['error'] = "Error: " . $e->getMessage();
                 }
-                header('Location: ../view/employee_list.php');
+                header('Location: ' . Router::url('employees'));
                 exit();
             }
             break;

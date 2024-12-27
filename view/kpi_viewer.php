@@ -1,8 +1,16 @@
 <?php
 session_start();
-$page_title = "KPI Viewer";
-ob_start();
-require_once '../controller/conn.php';
+
+// Include routing and database connection
+require_once dirname(__DIR__) . '/routing.php';
+require_once dirname(__DIR__) . '/controller/conn.php';
+global $conn;
+
+// Check if user is logged in, if not redirect to login
+if (!isset($_SESSION['user_nik'])) {
+    header('Location: ' . Router::url('login'));
+    exit;
+}
 
 // Get user's role and project
 $userRole = $_SESSION['user_role'] ?? '';
@@ -16,7 +24,6 @@ if ($isLimitedAccess) {
         $stmt->execute([$_SESSION['user_nik']]);
         $userProject = $stmt->fetchColumn();
         
-        // Automatically set the table parameter for limited access users
         if ($userProject) {
             $tableName = 'KPI_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $userProject);
             $_GET['table'] = $tableName;
@@ -25,479 +32,449 @@ if ($isLimitedAccess) {
         error_log("Error getting user project: " . $e->getMessage());
     }
 }
+
+// Set required variables for main_navbar.php
+$page_title = "KPI Viewer";
+
+// Additional CSS
+$additional_css = '
+<!-- Select2 -->
+<link rel="stylesheet" href="../adminlte/plugins/select2/css/select2.min.css">
+<link rel="stylesheet" href="../adminlte/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
+<!-- DataTables -->
+<link rel="stylesheet" href="../adminlte/plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" href="../adminlte/plugins/datatables-responsive/css/responsive.bootstrap4.min.css">
+<style>
+    .select2-container--default .select2-selection--single {
+        height: calc(2.25rem + 2px);
+        padding: .375rem .75rem;
+        border: 1px solid #ced4da;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 1.5;
+        padding-left: 0;
+    }
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 100%;
+    }
+    .table th, .table td {
+        white-space: nowrap;
+        vertical-align: middle;
+    }
+</style>';
+
+// Additional JavaScript
+$additional_js = '
+<!-- Select2 -->
+<script src="../adminlte/plugins/select2/js/select2.full.min.js"></script>
+<!-- DataTables -->
+<script src="../adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="../adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+<script src="../adminlte/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
+<script>
+$(document).ready(function() {
+    // Initialize Select2 Elements
+    $(".select2").select2({
+        theme: "bootstrap4"
+    });
+
+    // Initialize DataTable
+    $("#kpiTable").DataTable({
+        "responsive": false,
+        "autoWidth": false,
+        "scrollX": true,
+        "scrollCollapse": true,
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
+        "order": [[0, "asc"], [1, "asc"]],
+        "columnDefs": [
+            {
+                "targets": "_all",
+                "defaultContent": "-"
+            }
+        ]
+    });
+});
+</script>';
+
+// Start output buffering for main content
+ob_start();
 ?>
 
+<!-- Only the content part, no HTML structure -->
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">KPI Data Viewer</h3>
+        <?php if (isset($_GET['table'])): ?>
+            <div class="card-tools">
+                <!-- Export Button -->
+                <a href="<?php echo Router::url('controller/c_export_kpi.php'); ?>?table=<?php echo urlencode($_GET['table']); ?>&view=<?php echo urlencode($_GET['view'] ?? 'weekly'); ?>" 
+                   class="btn btn-success btn-sm">
+                    <i class="fas fa-download"></i> Export
+                </a>
+                <!-- Import Button -->
+                <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#importModal">
+                    <i class="fas fa-upload"></i> Import
+                </button>
+            </div>
+        <?php endif; ?>
     </div>
     <div class="card-body">
-        <!-- Project Selection - Only show for non-limited access users -->
-        <?php if (!$isLimitedAccess): ?>
-        <div class="tables-list mb-4">
-            <div class="row align-items-center">
+        <form id="kpiFilterForm" method="GET">
+            <div class="row mb-4">
+                <!-- Project Selection -->
                 <div class="col-md-6">
-                    <h5>Select Project:</h5>
+                    <?php if (!$isLimitedAccess): ?>
+                        <div class="form-group">
+                            <label>Select Project:</label>
+                            <select class="form-control select2" name="table" onchange="this.form.submit()">
+                                <option value="">-- Select Project --</option>
                     <?php
                     try {
                         $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
                         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
                             $tableName = 'KPI_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $row['project_name']);
-                            $activeClass = (isset($_GET['table']) && $_GET['table'] === $tableName) ? 'active' : '';
-                            echo "<a href='?table=" . urlencode($tableName) . "&view=" . ($_GET['view'] ?? 'weekly') . "' 
-                                 class='btn btn-outline-primary mr-2 mb-2 {$activeClass}'>" . 
-                                 htmlspecialchars($row['project_name']) . "</a>";
+                                        $selected = (isset($_GET['table']) && $_GET['table'] === $tableName) ? 'selected' : '';
+                                        // Add default view=weekly to the form submission
+                                        if ($selected && !isset($_GET['view'])) {
+                                            echo "<script>window.location.href = '?table=" . urlencode($tableName) . "&view=weekly';</script>";
+                                        }
+                                        echo "<option value='" . htmlspecialchars($tableName) . "' {$selected}>" . 
+                                             htmlspecialchars($row['project_name']) . "</option>";
                         }
                     } catch (PDOException $e) {
-                        echo "Error: " . $e->getMessage();
+                                    echo "<option value=''>Error loading projects</option>";
                     }
                     ?>
+                            </select>
+                        </div>
+                    <?php endif; ?>
                 </div>
-            </div>
-        </div>
-        <?php endif; ?>
 
-        <!-- Weekly/Monthly View Selector - Show for all users -->
-        <div class="row mb-4">
-            <div class="col-md-12 text-right">
+                <!-- Period Selection -->
+                <div class="col-md-6">
                 <?php if (isset($_GET['table'])): ?>
-                    <div class="btn-group" role="group">
-                        <a href="?table=<?php echo urlencode(preg_replace('/_MON$/', '', $_GET['table'])); ?>&view=weekly" 
-                           class="btn btn-outline-primary <?php echo (!isset($_GET['view']) || $_GET['view'] === 'weekly') ? 'active' : ''; ?>">
-                            <i class="fas fa-calendar-week mr-1"></i> Weekly View
-                        </a>
-                        <a href="?table=<?php echo urlencode(preg_replace('/_MON$/', '', $_GET['table'])) . '_MON'; ?>&view=monthly" 
-                           class="btn btn-outline-primary <?php echo (isset($_GET['view']) && $_GET['view'] === 'monthly') ? 'active' : ''; ?>">
-                            <i class="fas fa-calendar-alt mr-1"></i> Monthly View
-                        </a>
+                        <div class="form-group">
+                            <label>View Period:</label>
+                            <select class="form-control select2" name="view" onchange="this.form.submit()">
+                                <option value="weekly" <?php echo (!isset($_GET['view']) || $_GET['view'] === 'weekly') ? 'selected' : ''; ?>>
+                                    Weekly View
+                                </option>
+                                <option value="monthly" <?php echo (isset($_GET['view']) && $_GET['view'] === 'monthly') ? 'selected' : ''; ?>>
+                                    Monthly View
+                                </option>
+                            </select>
                     </div>
                 <?php endif; ?>
             </div>
         </div>
+        </form>
 
-        <!-- Display Selected Table -->
+        <!-- Content Area -->
+        <div class="mt-4">
+            <?php if (!isset($_GET['table'])): ?>
+                <div class="alert alert-info">
+                    <i class="icon fas fa-info-circle"></i> Please select a project to view its KPI data.
+                </div>
+            <?php else: ?>
+                <div id="kpiDataContainer">
+                    <div class="table-responsive">
+                        <table id="kpiTable" class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th style="width: 100px">Actions</th>
+                                    <th>Queues</th>
+                                    <th>KPI Metrics</th>
+                                    <th>Target</th>
+                                    <?php
+                                    if (isset($_GET['view'])) {
+                                        if ($_GET['view'] === 'monthly') {
+                                            $months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                                     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                            foreach ($months as $month) {
+                                                echo "<th>{$month}</th>";
+                                            }
+                                        } else { // weekly
+                                            for ($week = 1; $week <= 52; $week++) {
+                                                echo "<th>Wk " . str_pad($week, 2, '0', STR_PAD_LEFT) . "</th>";
+                                            }
+                                        }
+                                    }
+                                    ?>
+                                </tr>
+                            </thead>
+                            <tbody>
         <?php
-        if (isset($_GET['table'])) {
-            $baseTableName = $_GET['table'];
-            $viewType = $_GET['view'] ?? 'weekly';
-            
-            // Fix monthly table name to avoid duplicate _MON
+                                try {
+                                    $tableName = $_GET['table'] ?? '';
+                                    if ($tableName) {
+                                        // Get view type
+                                        $viewType = isset($_GET['view']) && $_GET['view'] === 'monthly' ? 'monthly' : 'weekly';
+                                        
+                                        // Set table names based on view type
             if ($viewType === 'monthly') {
-                // If table doesn't end with _MON, add it
-                if (!str_ends_with($baseTableName, '_MON')) {
-                    $tableName = $baseTableName . '_MON';
+                                            $kpiTable = $tableName . "_MON";  // Use _MON table for KPI definitions
+                                            $valuesTable = $tableName . "_MON_VALUES";
+                                            $periodColumn = 'month';
                 } else {
-                    $tableName = $baseTableName;
-                }
-            } else {
-                $tableName = $baseTableName;
-            }
-            
-            // Get project name
-            $projectName = substr($baseTableName, 4);  // Remove 'KPI_' prefix
-            $projectName = str_replace('_MON', '', $projectName);  // Remove '_MON' if present
-            $projectName = str_replace('_', ' ', $projectName);
-            
-            echo "<div class='card'>
-                    <div class='card-header'>
-                        <h3 class='card-title'>KPI Data for: " . htmlspecialchars($projectName) . 
-                        " (" . ucfirst($viewType) . " View)</h3>
-                    </div>
-                    <div class='card-body table-responsive p-0'>";
-            
-            echo "<table class='table table-bordered table-striped table-hover table-fixed-header'>";
-            echo "<thead><tr class='bg-primary'>";
-            echo "<th class='fixed-column bg-primary'>Actions</th>";
-            echo "<th class='fixed-column bg-primary'>Queue</th>";
-            echo "<th class='fixed-column bg-primary'>KPI Metrics</th>";
-            echo "<th class='fixed-column bg-primary'>Target</th>";
-            
-            if ($viewType === 'weekly') {
-                // Week headers
-                for ($i = 1; $i <= 52; $i++) {
-                    $weekNum = str_pad($i, 2, '0', STR_PAD_LEFT);
-                    echo "<th class='week-header'>WK" . $weekNum . "</th>";
-                }
-            } else {
-                // Month headers
-                $months = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 
-                          'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
-                foreach ($months as $month) {
-                    echo "<th class='month-header'>" . substr($month, 0, 3) . "</th>";
-                }
-            }
-            echo "</tr></thead>";
-            
-            echo "<tbody>";
-            try {
-                // Get KPI data with values
-                if ($viewType === 'monthly') {
-                    $sql = "SELECT k.queue, k.kpi_metrics, k.target, k.target_type, ";
-
-                    // Add month columns dynamically
-                    $monthColumns = [];
-                    for ($i = 1; $i <= 12; $i++) {
-                        $monthColumns[] = "MAX(CASE WHEN v.month = $i THEN v.value END) as MONTH_$i";
-                    }
-                    $sql .= implode(", ", $monthColumns);
-
-                    $sql .= " FROM `$tableName` k
-                             LEFT JOIN `{$tableName}_VALUES` v ON k.id = v.kpi_id
-                             GROUP BY k.id, k.queue, k.kpi_metrics, k.target, k.target_type";
-                } else {
-                    $sql = "SELECT k.queue, k.kpi_metrics, k.target, k.target_type, ";
-
-                    // Add week columns dynamically
-                    $weekColumns = [];
-                    for ($i = 1; $i <= 52; $i++) {
-                        $weekNum = str_pad($i, 2, '0', STR_PAD_LEFT);
-                        $weekColumns[] = "MAX(CASE WHEN v.week = $i THEN v.value END) as WK$weekNum";
-                    }
-                    $sql .= implode(", ", $weekColumns);
-
-                    $sql .= " FROM `$tableName` k
-                             LEFT JOIN `{$tableName}_VALUES` v ON k.id = v.kpi_id
-                             GROUP BY k.id, k.queue, k.kpi_metrics, k.target, k.target_type";
-                }
-                
-                $stmt = $conn->query($sql);
-                $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                            $kpiTable = $tableName;  // Use base table for KPI definitions
+                                            $valuesTable = $tableName . "_VALUES";
+                                            $periodColumn = 'week';
+                                        }
+                                        
+                                        // Get data with JOIN - using correct tables
+                                        $sql = "SELECT k.queue, k.kpi_metrics, k.target, k.target_type, 
+                                               v.{$periodColumn}, v.value
+                                        FROM `$kpiTable` k
+                                        LEFT JOIN `{$valuesTable}` v ON k.id = v.kpi_id
+                                        ORDER BY k.queue, k.kpi_metrics, v.{$periodColumn}";
+                                        
+                                        $stmt = $conn->query($sql);
+                                        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                        
+                                        // Process data into rows
+                                        $rowData = [];
+                                        $periodCount = ($viewType === 'monthly') ? 12 : 52;
+                                        
+                                        foreach ($data as $row) {
+                                            $kpiKey = $row['queue'] . '|' . $row['kpi_metrics'];
+                                            
+                                            if (!isset($rowData[$kpiKey])) {
+                                                $rowData[$kpiKey] = [
+                                                    'queue' => $row['queue'],
+                                                    'kpi_metrics' => $row['kpi_metrics'],
+                                                    'target' => $row['target'],
+                                                    'target_type' => $row['target_type'],
+                                                    'values' => array_fill(1, $periodCount, null)
+                                                ];
+                                            }
+                                            
+                                            // Store value using the correct period
+                                            $period = $row[$periodColumn];
+                                            if ($period !== null) {
+                                                $rowData[$kpiKey]['values'][$period] = $row['value'];
+                                            }
+                                        }
                 
                 // Display the data
-                foreach ($results as $row) {
+                                        foreach ($rowData as $row) {
                     echo "<tr>";
-                    echo "<td class='fixed-column text-nowrap'>";
-                    if (!$isLimitedAccess) {
-                        // Only show edit/delete buttons for non-limited users
-                        echo "<button type='button' class='btn btn-sm btn-info mr-1' onclick='editKPI(this)' 
+                                            echo "<td class='text-nowrap'>
+                                                    <button type='button' class='btn btn-sm btn-primary edit-kpi' 
+                                                            data-toggle='modal' 
+                                                            data-target='#editModal'
                                 data-queue='" . htmlspecialchars($row['queue']) . "'
-                                data-kpi-metrics='" . htmlspecialchars($row['kpi_metrics']) . "'
-                                data-target='" . htmlspecialchars($row['target']) . "'
-                                data-target-type='" . htmlspecialchars($row['target_type']) . "'>
+                                                            data-kpi_metrics='" . htmlspecialchars($row['kpi_metrics']) . "'
+                                                            data-kpi_target='" . htmlspecialchars($row['target']) . "'
+                                                            data-target_type='" . htmlspecialchars($row['target_type']) . "'>
                                 <i class='fas fa-edit'></i>
                             </button>
-                            <button type='button' class='btn btn-sm btn-danger mr-1' onclick='deleteKPI(this)'
+                                                    <button type='button' class='btn btn-sm btn-danger delete-kpi'
                                 data-queue='" . htmlspecialchars($row['queue']) . "'
-                                data-kpi-metrics='" . htmlspecialchars($row['kpi_metrics']) . "'>
+                                                            data-kpi_metrics='" . htmlspecialchars($row['kpi_metrics']) . "'>
                                 <i class='fas fa-trash'></i>
-                            </button>";
-                    }
-                    // Show chart button for everyone
-                    echo "<button type='button' class='btn btn-sm btn-success' onclick='showChart(this)'
-                            data-table='" . htmlspecialchars($tableName) . "'
-                            data-kpi-metrics='" . htmlspecialchars($row['kpi_metrics']) . "'
-                            data-period='" . htmlspecialchars($viewType) . "'>
-                            <i class='fas fa-chart-line'></i>
-                        </button>";
-                    echo "</td>";
-                    echo "<td class='fixed-column'>" . htmlspecialchars($row['queue']) . "</td>";
-                    echo "<td class='fixed-column'><a href='kpi_individual.php?table=" . urlencode($tableName) . 
-                         "&metric=" . urlencode($row['kpi_metrics']) . 
-                         "&view=" . urlencode($viewType) . 
-                         "&queue=" . urlencode($row['queue']) . "'>" . 
-                         htmlspecialchars($row['kpi_metrics']) . "</a></td>";
-                    echo "<td class='fixed-column'>" . htmlspecialchars($row['target']) . 
+                                                    </button>
+                                                  </td>";
+                                            echo "<td>" . htmlspecialchars($row['queue']) . "</td>";
+                                            echo "<td>" . htmlspecialchars($row['kpi_metrics']) . "</td>";
+                                            echo "<td>" . htmlspecialchars($row['target']) . 
                          ($row['target_type'] === 'percentage' ? '%' : '') . "</td>";
 
-                    // Display values based on view type
-                    if ($viewType === 'monthly') {
-                        for ($i = 1; $i <= 12; $i++) {
-                            $columnName = "MONTH_" . $i;
-                            $value = $row[$columnName];
-                            echo "<td>" . ($value !== null ? 
-                                ($row['target_type'] === 'percentage' ? $value . '%' : $value) : 
-                                '') . "</td>";
-                        }
+                                            // Write period values
+                                            for ($i = 1; $i <= $periodCount; $i++) {
+                                                $value = $row['values'][$i];
+                                                if ($value !== null) {
+                                                    if ($row['target_type'] === 'percentage') {
+                                                        $value .= '%';
+                                                    }
+                                                    echo "<td>" . htmlspecialchars($value) . "</td>";
                     } else {
-                        for ($i = 1; $i <= 52; $i++) {
-                            $weekNum = str_pad($i, 2, '0', STR_PAD_LEFT);
-                            $columnName = "WK" . $weekNum;
-                            $value = $row[$columnName];
-                            echo "<td>" . ($value !== null ? 
-                                ($row['target_type'] === 'percentage' ? $value . '%' : $value) : 
-                                '') . "</td>";
+                                                    echo "<td>-</td>";
                         }
                     }
                     echo "</tr>";
+                                        }
                 }
             } catch (PDOException $e) {
-                echo "Error: " . $e->getMessage();
-            }
-            echo "</tbody></table></div></div>";
-
-            // Add Import/Export buttons - Note the proper PHP syntax
-            if (!$isLimitedAccess) {
-                echo "<div class='mt-4'>
-                    <div class='btn-group'>
-                        <form method='GET' action='../controller/c_export_kpi.php' style='display: inline-block;'>
-                            <input type='hidden' name='table' value='" . htmlspecialchars($tableName) . "'>
-                            <button type='submit' class='btn btn-success'>
-                                <i class='fas fa-file-excel mr-2'></i>Export to Excel
-                            </button>
-                        </form>
-                        
-                        <form method='POST' action='../controller/c_import_kpi.php' enctype='multipart/form-data' 
-                              class='ml-2 d-inline-flex align-items-center'>
-                            <input type='hidden' name='table_name' value='" . htmlspecialchars($tableName) . "'>
-                            <input type='hidden' name='view_type' value='" . htmlspecialchars($viewType) . "'>
-                            <div class='custom-file' style='width: 250px;'>
-                                <input type='file' class='custom-file-input' name='file' accept='.xlsx' required 
-                                       id='customFile'>
-                                <label class='custom-file-label' for='customFile'>Choose file</label>
-                            </div>
-                            <button type='submit' name='importKPI' class='btn btn-primary ml-2'>
-                                <i class='fas fa-file-import mr-2'></i>Import
-                            </button>
-                        </form>
+                                    error_log("Error loading KPI data: " . $e->getMessage());
+                                    echo "<tr><td colspan='15' class='text-center text-danger'>Error loading KPI data: " . htmlspecialchars($e->getMessage()) . "</td></tr>";
+                                }
+                                ?>
+                            </tbody>
+                        </table>
                     </div>
-                </div>";
-            }
-        } else {
-            echo "<div class='alert alert-info'>
-                    <i class='icon fas fa-info-circle'></i> Please select a project to view its KPI data.
-                  </div>";
-        }
-        ?>
+                </div>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 
-<style>
-.table-container {
-    overflow-x: auto;
-    margin-top: 20px;
-}
-.week-header, .month-header {
-    padding: 8px 4px;
-    font-size: 0.85rem;
-    text-align: center;
-    min-width: 50px;
-}
-.month-header {
-    min-width: 70px;
-}
-.btn-outline-primary.active {
-    color: #fff;
-}
-.table th {
-    white-space: nowrap;
-    vertical-align: middle;
-}
-.custom-file-label::after {
-    content: "Browse";
-}
-.table-fixed-header {
-    position: relative;
-}
-.fixed-column {
-    position: sticky;
-    left: 0;
-    background-color: #fff;
-    z-index: 1;
-}
-.fixed-column.bg-primary {
-    background-color: #007bff !important;
-}
-.fixed-column::after {
-    content: '';
-    position: absolute;
-    right: -5px;
-    top: 0;
-    bottom: 0;
-    width: 5px;
-    background: linear-gradient(to right, rgba(0,0,0,0.1), rgba(0,0,0,0));
-}
-</style>
-
-<script>
-// Existing file input handler
-document.querySelector('.custom-file-input')?.addEventListener('change', function(e) {
-    var fileName = e.target.files[0].name;
-    var nextSibling = e.target.nextElementSibling;
-    nextSibling.innerText = fileName;
-});
-
-// Edit KPI function
-function editKPI(button) {
-    // Get data from button attributes
-    const queue = button.getAttribute('data-queue');
-    const kpiMetrics = button.getAttribute('data-kpi-metrics');
-    const target = button.getAttribute('data-target');
-    const targetType = button.getAttribute('data-target-type');
-
-    // Set values in the edit modal
-    document.getElementById('original_queue').value = queue;
-    document.getElementById('original_kpi_metrics').value = kpiMetrics;
-    document.getElementById('edit_queue').value = queue;
-    document.getElementById('edit_kpi_metrics').value = kpiMetrics;
-    document.getElementById('edit_target').value = target;
-    document.getElementById('edit_target_type').value = targetType;
-
-    // Show the modal
-    $('#editKPIModal').modal('show');
-}
-
-// Delete KPI function
-function deleteKPI(button) {
-    if (confirm('Are you sure you want to delete this KPI?')) {
-        // Get data from button attributes
-        const queue = button.getAttribute('data-queue');
-        const kpiMetrics = button.getAttribute('data-kpi-metrics');
-
-        // Set values in the hidden delete form
-        document.getElementById('delete_queue').value = queue;
-        document.getElementById('delete_kpi_metrics').value = kpiMetrics;
-
-        // Submit the delete form
-        document.getElementById('deleteKPIForm').submit();
-    }
-}
-
-// Initialize tooltips if you want to use them
-$(function () {
-    $('[data-toggle="tooltip"]').tooltip();
-});
-</script>
-
-<!-- Edit KPI Modal -->
-<div class="modal fade" id="editKPIModal" tabindex="-1" role="dialog" aria-labelledby="editKPIModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editKPIModalLabel">Edit KPI</h5>
+                <h5 class="modal-title">Import KPI Data</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form action="../controller/c_viewer_update.php" method="POST">
-                <input type="hidden" name="table_name" value="<?php echo htmlspecialchars($baseTableName ?? ''); ?>">
-                <input type="hidden" name="view_type" value="<?php echo htmlspecialchars($viewType ?? 'weekly'); ?>">
-                <input type="hidden" name="original_queue" id="original_queue">
-                <input type="hidden" name="original_kpi_metrics" id="original_kpi_metrics">
-                
+            <form action="../controller/c_import_kpi.php" method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
+                    <input type="hidden" name="table_name" value="<?php echo htmlspecialchars($_GET['table'] ?? ''); ?>">
+                    <input type="hidden" name="view_type" value="<?php echo htmlspecialchars($_GET['view'] ?? 'weekly'); ?>">
+                    
                     <div class="form-group">
-                        <label for="edit_queue">Queue</label>
-                        <input type="text" class="form-control" id="edit_queue" name="queue" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_kpi_metrics">KPI Metrics</label>
-                        <input type="text" class="form-control" id="edit_kpi_metrics" name="kpi_metrics" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="edit_target">Target</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="edit_target" name="target" required>
-                            <div class="input-group-append">
-                                <select class="form-control" name="target_type" id="edit_target_type">
-                                    <option value="number">Number</option>
-                                    <option value="percentage">Percentage (%)</option>
-                                </select>
-                            </div>
+                        <label for="file">Select Excel File</label>
+                        <div class="custom-file">
+                            <input type="file" class="custom-file-input" id="file" name="file" accept=".xlsx,.xls" required>
+                            <label class="custom-file-label" for="file">Choose file</label>
                         </div>
+                        <small class="form-text text-muted mt-2">
+                            Download the template first to ensure correct format.
+                        </small>
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <a href="../controller/c_export_kpi.php?table=<?php echo urlencode($_GET['table'] ?? ''); ?>&template=1" 
+                       class="btn btn-info">
+                        <i class="fas fa-download"></i> Download Template
+                    </a>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-                    <button type="submit" name="update_kpi" class="btn btn-primary">Update KPI</button>
+                    <button type="submit" name="importKPI" class="btn btn-primary">Import</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Delete KPI Form (Hidden) -->
-<form id="deleteKPIForm" action="../controller/c_viewer_del.php" method="POST" style="display: none;">
-    <input type="hidden" name="table_name" value="<?php echo htmlspecialchars($baseTableName ?? ''); ?>">
-    <input type="hidden" name="view_type" value="<?php echo htmlspecialchars($viewType ?? 'weekly'); ?>">
-    <input type="hidden" name="queue" id="delete_queue">
-    <input type="hidden" name="kpi_metrics" id="delete_kpi_metrics">
-    <input type="hidden" name="delete_kpi" value="1">
-</form>
-
-<!-- Chart Modal -->
-<div class="modal fade" id="chartModal" tabindex="-1" role="dialog" aria-labelledby="chartModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+<!-- Add Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="chartModalLabel">KPI Chart</h5>
+                <h5 class="modal-title">Edit KPI</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
+            <form action="../controller/c_viewer_update.php" method="POST">
             <div class="modal-body">
-                <div id="chartContainer" style="height: 400px;"></div>
+                    <input type="hidden" name="table_name" value="<?php echo htmlspecialchars($_GET['table'] ?? ''); ?>">
+                    <input type="hidden" name="view_type" value="<?php echo htmlspecialchars($_GET['view'] ?? 'weekly'); ?>">
+                    <input type="hidden" name="original_queue" id="original_queue">
+                    <input type="hidden" name="original_kpi_metrics" id="original_kpi_metrics">
+                    
+                    <div class="form-group">
+                        <label for="queue">Queue</label>
+                        <input type="text" class="form-control" id="queue" name="queue" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="kpi_metrics">KPI Metrics</label>
+                        <input type="text" class="form-control" id="kpi_metrics" name="kpi_metrics" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="target">Target</label>
+                        <input type="text" class="form-control" id="target" name="target" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="target_type">Target Type</label>
+                        <select class="form-control" id="target_type" name="target_type" required>
+                            <option value="percentage">Percentage</option>
+                            <option value="number">Number</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
             </div>
+            </form>
         </div>
     </div>
 </div>
 
-<!-- Add Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<?php
+// Get the buffered content
+$content = ob_get_clean();
 
+// Add to $additional_js
+$additional_js .= '
+<!-- bs-custom-file-input -->
+<script src="../adminlte/plugins/bs-custom-file-input/bs-custom-file-input.min.js"></script>
 <script>
-let kpiChart = null;
+$(document).ready(function() {
+    bsCustomFileInput.init();
+    
+    // Show success/error messages if they exist
+    ';
 
-function showChart(button) {
-    const table = button.getAttribute('data-table');
-    const kpiMetric = button.getAttribute('data-kpi-metrics');
-    const period = button.getAttribute('data-period');
-    
-    // Show modal
-    $('#chartModal').modal('show');
-    
-    // Show loading
-    const chartContainer = document.getElementById('chartContainer');
-    chartContainer.innerHTML = '<div class="d-flex justify-content-center align-items-center" style="height:400px"><div class="spinner-border text-primary"></div></div>';
-    
-    fetch(`../controller/get_chart_data.php?project=${encodeURIComponent(table)}&period=${period}&metric=${encodeURIComponent(kpiMetric)}`)
-        .then(response => response.json())
-        .then(data => {
-            if (!data.success) throw new Error(data.error);
-            
-            // Clear loading
-            chartContainer.innerHTML = '<canvas></canvas>';
-            
-            // Create simple line chart
-            new Chart(chartContainer.querySelector('canvas'), {
-                type: 'line',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: kpiMetric,
-                        data: data.values,
-                        borderColor: 'rgb(75, 192, 192)',
-                        tension: 0.1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        title: {
-                            display: true,
-                            text: kpiMetric
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true
-                        }
-                    }
-                }
-            });
-        })
-        .catch(error => {
-            chartContainer.innerHTML = `<div class="alert alert-danger m-3">${error.message}</div>`;
-        });
+if (isset($_SESSION['success'])) {
+    $additional_js .= 'showNotification("' . addslashes($_SESSION['success']) . '", "success");';
+    unset($_SESSION['success']);
 }
 
-// Clean up when modal closes
-$('#chartModal').on('hidden.bs.modal', function() {
-    document.getElementById('chartContainer').innerHTML = '';
-});
-</script>
+if (isset($_SESSION['error'])) {
+    $additional_js .= 'showNotification("' . addslashes($_SESSION['error']) . '", "error");';
+    unset($_SESSION['error']);
+}
 
-<?php
-$content = ob_get_clean();
-require_once '../main_navbar.php';
+$additional_js .= '
+});
+
+function showNotification(message, type) {
+    $(document).Toasts("create", {
+        class: type === "success" ? "bg-success" : "bg-danger",
+        body: message,
+        autohide: true,
+        delay: 3000,
+        hide: true,
+        closeButton: false
+    });
+}
+
+$(document).ready(function() {
+    // Handle edit button clicks
+    $(".edit-kpi").click(function() {
+        var queue = $(this).data("queue");
+        var kpi_metrics = $(this).data("kpi_metrics");
+        var target = $(this).data("kpi_target");
+        var target_type = $(this).data("target_type");
+        
+        $("#original_queue").val(queue);
+        $("#original_kpi_metrics").val(kpi_metrics);
+        $("#queue").val(queue);
+        $("#kpi_metrics").val(kpi_metrics);
+        $("#target").val(target);
+        $("#target_type").val(target_type);
+    });
+    
+    // Handle delete button clicks
+    $(".delete-kpi").click(function() {
+        if (confirm("Are you sure you want to delete this KPI?")) {
+            var form = $("<form>")
+                .attr("method", "POST")
+                .attr("action", "../controller/c_viewer_del.php");
+                
+            form.append($("<input>")
+                .attr("type", "hidden")
+                .attr("name", "table_name")
+                .val("' . htmlspecialchars($_GET['table'] ?? '') . '"));
+                
+            form.append($("<input>")
+                .attr("type", "hidden")
+                .attr("name", "queue")
+                .val($(this).data("queue")));
+                
+            form.append($("<input>")
+                .attr("type", "hidden")
+                .attr("name", "kpi_metrics")
+                .val($(this).data("kpi_metrics")));
+            
+            $("body").append(form);
+            form.submit();
+        }
+    });
+});
+</script>';
 ?>

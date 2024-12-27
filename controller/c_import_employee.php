@@ -2,6 +2,7 @@
 session_start();
 require_once 'conn.php';
 require_once 'vendor/autoload.php';
+require_once dirname(__DIR__) . '/routing.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -76,6 +77,6 @@ try {
 }
 
 // Redirect back with status
-header('Location: ../view/employee_list.php');
+header('Location: ' . Router::url('employees'));
 exit;
 ?> 

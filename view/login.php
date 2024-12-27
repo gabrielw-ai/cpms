@@ -1,9 +1,12 @@
 <?php
 session_start();
 
-// If user is already logged in, redirect to index
+// Include routing
+require_once dirname(__DIR__) . '/routing.php';
+
+// If user is already logged in, redirect to dashboard
 if (isset($_SESSION['user_nik'])) {
-    header('Location: ../index.php');
+    header('Location: ' . Router::url('dashboard'));
     exit;
 }
 ?>

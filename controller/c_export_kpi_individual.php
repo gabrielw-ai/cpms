@@ -1,83 +1,134 @@
 <?php
 require_once 'conn.php';
 require 'vendor/autoload.php';
+global $conn;
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+
+// Add error logging
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+error_log("Starting c_export_kpi_individual.php");
 
 try {
+    if (!isset($_GET['project'])) {
+        throw new Exception('Project parameter is required');
+    }
+
+    $project = $_GET['project'];
+    $metrics = isset($_GET['kpi']) ? json_decode($_GET['kpi'], true) : [];
+    $queues = isset($_GET['queue']) ? json_decode($_GET['queue'], true) : [];
+    
+    error_log("Exporting KPI for Project: $project");
+    error_log("Metrics: " . print_r($metrics, true));
+    error_log("Queues: " . print_r($queues, true));
+
+    // Get the table name
+    $tableName = "KPI_" . str_replace(" ", "_", strtoupper($project)) . "_INDIVIDUAL_MON";
+
+    // Create new Spreadsheet object
     $spreadsheet = new Spreadsheet();
     $sheet = $spreadsheet->getActiveSheet();
-    
+
     // Set headers
-    $headers = ['NIK', 'Name', 'KPI Metrics', 'Queue', 'Month', 'Value'];
-    foreach (range('A', 'F') as $i => $col) {
-        $sheet->setCellValue($col . '1', $headers[$i]);
+    $headers = [
+        'NIK',
+        'Employee Name',
+        'KPI Metrics',
+        'Queue',
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December'
+    ];
+
+    // Write headers using column letters
+    foreach ($headers as $col => $header) {
+        $colLetter = Coordinate::stringFromColumnIndex($col + 1);
+        $sheet->setCellValue($colLetter . '1', $header);
+    }
+
+    // Build query based on filters
+    $sql = "SELECT * FROM `$tableName`";
+    $params = [];
+    
+    if (!empty($metrics) && !empty($queues)) {
+        $metricPlaceholders = str_repeat('?,', count($metrics) - 1) . '?';
+        $queuePlaceholders = str_repeat('?,', count($queues) - 1) . '?';
+        $sql .= " WHERE kpi_metrics IN ($metricPlaceholders) AND queue IN ($queuePlaceholders)";
+        $params = array_merge($metrics, $queues);
     }
     
-    // Get data
-    if (isset($_GET['template'])) {
-        // Return empty template with headers only
-    } else {
-        // Get parameters
-        $project = $_GET['project'];
-        $kpiMetrics = json_decode($_GET['kpi'], true);
-        $queues = json_decode($_GET['queue'], true);
-        
-        error_log("Exporting data for: " . json_encode(['project' => $project, 'kpi' => $kpiMetrics, 'queues' => $queues]));
+    $sql .= " ORDER BY NIK, kpi_metrics, queue";
+    
+    error_log("SQL Query: " . $sql);
+    error_log("Parameters: " . print_r($params, true));
 
-        // Build query with filters
-        $sql = "SELECT * FROM individual_staging WHERE 1=1";
-        $params = [];
+    $stmt = $conn->prepare($sql);
+    $stmt->execute($params);
+    $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        if (!empty($kpiMetrics)) {
-            $placeholders = str_repeat('?,', count($kpiMetrics) - 1) . '?';
-            $sql .= " AND kpi_metrics IN ($placeholders)";
-            $params = array_merge($params, $kpiMetrics);
-        }
-
-        if (!empty($queues)) {
-            $placeholders = str_repeat('?,', count($queues) - 1) . '?';
-            $sql .= " AND queue IN ($placeholders)";
-            $params = array_merge($params, $queues);
-        }
-
-        $sql .= " ORDER BY NIK, kpi_metrics, queue";
-        
-        error_log("Export SQL: " . $sql);
-        error_log("Export params: " . json_encode($params));
-
-        $stmt = $conn->prepare($sql);
-        $stmt->execute($params);
-        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        $row = 2;
-        foreach ($data as $record) {
-            foreach (['january', 'february', 'march', 'april', 'may', 'june', 
-                     'july', 'august', 'september', 'october', 'november', 'december'] as $month) {
-                if (!is_null($record[$month])) {
-                    $sheet->setCellValue('A' . $row, $record['NIK']);
-                    $sheet->setCellValue('B' . $row, $record['employee_name']);
-                    $sheet->setCellValue('C' . $row, $record['kpi_metrics']);
-                    $sheet->setCellValue('D' . $row, $record['queue']);
-                    $sheet->setCellValue('E' . $row, ucfirst($month));
-                    $sheet->setCellValue('F' . $row, $record[$month]);
-                    $row++;
-                }
-            }
-        }
+    // Write data using column letters
+    $row = 2;
+    foreach ($data as $record) {
+        $sheet->setCellValue('A' . $row, $record['NIK']);
+        $sheet->setCellValue('B' . $row, $record['employee_name']);
+        $sheet->setCellValue('C' . $row, $record['kpi_metrics']);
+        $sheet->setCellValue('D' . $row, $record['queue']);
+        $sheet->setCellValue('E' . $row, $record['january']);
+        $sheet->setCellValue('F' . $row, $record['february']);
+        $sheet->setCellValue('G' . $row, $record['march']);
+        $sheet->setCellValue('H' . $row, $record['april']);
+        $sheet->setCellValue('I' . $row, $record['may']);
+        $sheet->setCellValue('J' . $row, $record['june']);
+        $sheet->setCellValue('K' . $row, $record['july']);
+        $sheet->setCellValue('L' . $row, $record['august']);
+        $sheet->setCellValue('M' . $row, $record['september']);
+        $sheet->setCellValue('N' . $row, $record['october']);
+        $sheet->setCellValue('O' . $row, $record['november']);
+        $sheet->setCellValue('P' . $row, $record['december']);
+        $row++;
     }
+
+    // Auto-size columns
+    foreach (range('A', 'P') as $col) {
+        $sheet->getColumnDimension($col)->setAutoSize(true);
+    }
+
+    // Style headers
+    $headerRange = 'A1:P1';
+    $sheet->getStyle($headerRange)->applyFromArray([
+        'font' => ['bold' => true],
+        'fill' => [
+            'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+            'startColor' => ['rgb' => 'E2EFDA']
+        ]
+    ]);
+
+    // Create writer and output file
+    $writer = new Xlsx($spreadsheet);
     
     // Set headers for download
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment;filename="kpi_data.xlsx"');
+    header('Content-Disposition: attachment;filename="' . $project . '_individual_kpi.xlsx"');
     header('Cache-Control: max-age=0');
-    
-    $writer = new Xlsx($spreadsheet);
+
+    // Save to output
     $writer->save('php://output');
-    
+    exit;
+
 } catch (Exception $e) {
-    error_log("Export error: " . $e->getMessage());
-    header('HTTP/1.1 500 Internal Server Error');
-    echo json_encode(['error' => $e->getMessage()]);
+    error_log("Error in c_export_kpi_individual.php: " . $e->getMessage());
+    echo "Error: " . $e->getMessage();
 } 

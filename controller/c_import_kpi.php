@@ -1,127 +1,155 @@
 <?php
 session_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+
 require_once 'conn.php';
 require_once 'vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
+// Function to safely encode JSON response
+function sendJsonResponse($success, $data) {
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    header('Content-Type: application/json');
+    echo json_encode([
+        'success' => $success,
+        'data' => $data
+    ]);
+    exit;
+}
+
 if (isset($_POST['importKPI']) && isset($_FILES['file'])) {
     try {
         $viewType = $_POST['view_type'] ?? 'weekly';
+        $tableName = $_POST['table_name'];
+        $baseTableName = preg_replace('/_MON$/', '', $tableName); // Remove _MON if exists
         
-        $baseTableName = $_POST['table_name'];
-        $baseTableName = preg_replace('/_MON$/', '', $baseTableName);
+        // Always define both tables for KPI definitions
+        $kpiTables = [
+            $baseTableName,              // Weekly KPI definitions
+            $baseTableName . '_MON'      // Monthly KPI definitions
+        ];
         
-        $tableName = ($viewType === 'monthly') 
-            ? $baseTableName . '_MON' 
-            : $baseTableName;
-        
-        error_log("Import type: " . $viewType);
-        error_log("Table name: " . $tableName);
-        
-        $inputFileName = $_FILES['file']['tmp_name'];
-        $spreadsheet = IOFactory::load($inputFileName);
-        $worksheet = $spreadsheet->getActiveSheet();
-        $rows = $worksheet->toArray();
-        
-        // Skip header row
-        array_shift($rows);
-        
-        // Begin transaction
-        $conn->beginTransaction();
-        
-        // Prepare statements
-        $insertKPI = $conn->prepare("INSERT INTO `$tableName` 
-            (queue, kpi_metrics, target, target_type) 
-            VALUES (?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE 
-            target = VALUES(target),
-            target_type = VALUES(target_type)");
-
-        $getKPIId = $conn->prepare("SELECT id FROM `$tableName` 
-            WHERE queue = ? AND kpi_metrics = ?");
-
-        // Set up period-specific variables
+        // Set values table based on view type (keep this as is)
         if ($viewType === 'monthly') {
+            $valuesTable = $baseTableName . "_MON_VALUES";
             $periodColumn = 'month';
             $periodCount = 12;
-            $insertValue = $conn->prepare("INSERT INTO `{$tableName}_VALUES` 
-                (kpi_id, month, value) 
-                VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE value = VALUES(value)");
         } else {
+            $valuesTable = $baseTableName . "_VALUES";
             $periodColumn = 'week';
             $periodCount = 52;
-            $insertValue = $conn->prepare("INSERT INTO `{$tableName}_VALUES` 
-                (kpi_id, week, value) 
-                VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE value = VALUES(value)");
         }
         
-        $success = 0;
-        $errors = [];
+        $conn->beginTransaction();
         
-        foreach ($rows as $i => $row) {
-            if (empty($row[0])) continue; // Skip empty rows
+        try {
+            // Prepare statements for both tables
+            $insertStatements = [];
+            foreach ($kpiTables as $table) {
+                $insertStatements[$table] = $conn->prepare(
+                    "INSERT INTO `$table` (queue, kpi_metrics, target, target_type) 
+                     VALUES (?, ?, ?, ?)
+                     ON DUPLICATE KEY UPDATE 
+                     target = VALUES(target),
+                     target_type = VALUES(target_type)"
+                );
+            }
+
+            // Prepare statement for values (only for current view)
+            $insertValue = $conn->prepare(
+                "INSERT INTO `{$valuesTable}` (kpi_id, {$periodColumn}, value) 
+                 VALUES (?, ?, ?)
+                 ON DUPLICATE KEY UPDATE value = VALUES(value)"
+            );
+
+            // Validate file upload
+            if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                $uploadErrors = [
+                    UPLOAD_ERR_INI_SIZE => 'File exceeds upload_max_filesize',
+                    UPLOAD_ERR_FORM_SIZE => 'File exceeds MAX_FILE_SIZE',
+                    UPLOAD_ERR_PARTIAL => 'File was only partially uploaded',
+                    UPLOAD_ERR_NO_FILE => 'No file was uploaded',
+                    UPLOAD_ERR_NO_TMP_DIR => 'Missing temporary folder',
+                    UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
+                    UPLOAD_ERR_EXTENSION => 'A PHP extension stopped the file upload'
+                ];
+                $errorMessage = isset($uploadErrors[$_FILES['file']['error']]) 
+                    ? $uploadErrors[$_FILES['file']['error']] 
+                    : 'Unknown upload error';
+                $_SESSION['error'] = $errorMessage;
+                header("Location: ../kpi/viewer?table=" . urlencode($tableName) . "&view=" . $viewType);
+                exit;
+            }
+
+            $inputFileName = $_FILES['file']['tmp_name'];
+            $spreadsheet = IOFactory::load($inputFileName);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
             
-            try {
-                if (count($row) < 4) {
-                    throw new Exception("Row " . ($i + 2) . " has insufficient data");
-                }
+            // Skip header row
+            array_shift($rows);
+            
+            // Process Excel rows
+            foreach ($rows as $row) {
+                if (empty($row[0])) continue;
 
                 $queue = $row[0];
                 $kpi_metrics = $row[1];
                 $target = $row[2];
                 $target_type = $row[3];
-                
-                // Insert/Update KPI definition
-                $insertKPI->execute([$queue, $kpi_metrics, $target, $target_type]);
-                
-                // Get KPI ID
+
+                // Insert/Update KPI definitions in BOTH tables
+                foreach ($insertStatements as $stmt) {
+                    $stmt->execute([$queue, $kpi_metrics, $target, $target_type]);
+                }
+
+                // Handle values only for current view type
+                if ($viewType === 'monthly') {
+                    $getKPIId = $conn->prepare("SELECT id FROM `{$baseTableName}_MON` WHERE queue = ? AND kpi_metrics = ?");
+                } else {
+                    $getKPIId = $conn->prepare("SELECT id FROM `{$baseTableName}` WHERE queue = ? AND kpi_metrics = ?");
+                }
+
                 $getKPIId->execute([$queue, $kpi_metrics]);
                 $kpiId = $getKPIId->fetchColumn();
-                
-                if (!$kpiId) {
-                    throw new Exception("Failed to get KPI ID for $queue - $kpi_metrics");
-                }
-                
-                // Process values - starting from column 4 (index 3)
+
+                // Insert values for current view type
                 for ($period = 1; $period <= $periodCount; $period++) {
-                    $columnIndex = $period + 3; // Excel columns start at index 4 (column E)
+                    $columnIndex = $period + 3;
                     $value = isset($row[$columnIndex]) ? $row[$columnIndex] : null;
                     
                     if ($value !== null && $value !== '') {
                         if ($target_type === 'percentage') {
                             $value = str_replace('%', '', $value);
                         }
-                        error_log("Inserting $periodColumn $period: $value (column index: $columnIndex)");
                         $insertValue->execute([$kpiId, $period, $value]);
                     }
                 }
-                
-                $success++;
-            } catch (Exception $e) {
-                $errors[] = "Row " . ($i + 2) . ": " . $e->getMessage();
             }
-        }
-        
-        if (empty($errors)) {
-            $conn->commit();
-            $_SESSION['success'] = "$success records imported successfully";
-        } else {
+
+            if (empty($errors)) {
+                $conn->commit();
+                $rowCount = count($rows);
+                $_SESSION['success'] = "Success to import $rowCount rows";
+            } else {
+                $conn->rollBack();
+                $_SESSION['error'] = "Import failed";
+            }
+            
+        } catch (Exception $e) {
             $conn->rollBack();
-            $_SESSION['error'] = "Import failed: " . implode("; ", $errors);
+            throw $e;
         }
         
     } catch (Exception $e) {
-        if ($conn->inTransaction()) {
-            $conn->rollBack();
-        }
         $_SESSION['error'] = "Import failed: " . $e->getMessage();
     }
-    
-    $viewType = $_POST['view_type'] ?? 'weekly';
-    header("Location: ../view/kpi_viewer.php?table=" . urlencode($tableName) . "&view=" . $viewType);
+
+    header("Location: ../kpi/viewer?table=" . urlencode($tableName) . "&view=" . $viewType);
     exit;
 }
 ?>

@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'conn.php';
+require_once '../routing.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nik = $_POST['nik'] ?? '';
@@ -23,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_role'] = $user['role'];
                 
                 error_log("Login successful for user: " . $user['employee_name']);
-                header('Location: ../index.php');
+                header('Location: ' . Router::url('dashboard'));
                 exit;
             } else {
                 error_log("Password verification failed");

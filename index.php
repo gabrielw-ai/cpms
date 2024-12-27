@@ -1,26 +1,14 @@
 <?php
-session_start();
-$page_title = "Dashboard";
-ob_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+require_once 'config.php';
+require_once 'routing.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['user_nik'])) {
-    header('Location: view/login.php');
+// If accessing root URL or index.php, route to dashboard
+if ($_SERVER['REQUEST_URI'] == '/' || $_SERVER['REQUEST_URI'] == '/index.php') {
+    header('Location: ' . Router::url('dashboard'));
     exit;
 }
-?>
 
-<div class="card">
-    <div class="card-header">
-        <h3 class="card-title">Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?></h3>
-    </div>
-    <div class="card-body">
-        <p>You are logged in as: <?php echo htmlspecialchars($_SESSION['user_role']); ?></p>
-        <p>Your NIK: <?php echo htmlspecialchars($_SESSION['user_nik']); ?></p>
-    </div>
-</div>
-
-<?php
-$content = ob_get_clean();
-require_once 'main_navbar.php';
-?>
+$router = new Router();
+$router->route();

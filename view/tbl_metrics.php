@@ -1,14 +1,52 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 $page_title = "Add KPI";
-ob_start();
-require_once '../controller/conn.php';
+
+// Include config instead of helpers
+require_once dirname(__DIR__) . '/config.php';
+
+// Include the database connection with function redeclaration protection
+$controller_path = realpath(dirname(__DIR__) . '/controller/conn.php');
+if (!file_exists($controller_path)) {
+    die("Cannot find database connection file at: " . $controller_path);
+}
+
+// Include only if closeConnection isn't already defined
+if (!function_exists('closeConnection')) {
+    global $conn;
+    include $controller_path;
+} else {
+    // If function exists, just make sure we have access to $conn
+    global $conn;
+}
+
+// Verify connection is established with more detailed error reporting
+if (!isset($conn)) {
+    $error_message = "Database connection failed in tbl_metrics.php\n";
+    $error_message .= "Path used: " . $controller_path . "\n";
+    $error_message .= "Current file: " . __FILE__ . "\n";
+    $error_message .= "Variables available: " . implode(', ', array_keys(get_defined_vars()));
+    
+    error_log($error_message);
+    die("Database connection failed - check error log for details");
+}
+
+// Test the connection explicitly
+try {
+    $conn->getAttribute(PDO::ATTR_CONNECTION_STATUS);
+} catch (PDOException $e) {
+    error_log("Database connection test failed: " . $e->getMessage());
+    die("Database connection test failed");
+}
 
 // Add required CSS and JS in the correct order
 $additional_css = '
-<link rel="stylesheet" href="../adminlte/plugins/select2/css/select2.min.css">
-<link rel="stylesheet" href="../adminlte/plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css">
-<link rel="stylesheet" href="../adminlte/plugins/datatables-bs4/css/dataTables.bootstrap4.min.css">
+<link rel="stylesheet" href="' . getAssetUrl('plugins/select2/css/select2.min.css') . '">
+<link rel="stylesheet" href="' . getAssetUrl('plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css') . '">
+<link rel="stylesheet" href="' . getAssetUrl('plugins/datatables-bs4/css/dataTables.bootstrap4.min.css') . '">
 <style>
     .floating-alert {
         position: fixed;
@@ -18,6 +56,25 @@ $additional_css = '
         min-width: 250px;
         max-width: 350px;
         animation: slideIn 0.5s ease-in-out;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: none;
+    }
+
+    /* Ensure alerts are always on top */
+    .alert {
+        margin-bottom: 1rem;
+        border: none;
+        border-radius: 4px;
+    }
+
+    .alert-success {
+        background-color: #28a745;
+        color: #fff;
+    }
+
+    .alert-danger {
+        background-color: #dc3545;
+        color: #fff;
     }
 
     @keyframes slideIn {
@@ -29,6 +86,16 @@ $additional_css = '
             transform: translateX(0);
             opacity: 1;
         }
+    }
+
+    /* Ensure alert close button is visible */
+    .alert .close {
+        color: inherit;
+        opacity: 0.8;
+    }
+
+    .alert .close:hover {
+        opacity: 1;
     }
 
     .modal-body {
@@ -57,7 +124,6 @@ $additional_css = '
         opacity: 0.5;
     }
     
-    /* Ensure modal backdrop is removed */
     .modal-backdrop.fade.show {
         opacity: 0.5;
     }
@@ -65,43 +131,88 @@ $additional_css = '
     .modal.fade.show {
         background-color: rgba(0, 0, 0, 0.5);
     }
+
+    /* Remove select arrow and make styling consistent */
+    select.form-control {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: none !important;
+        padding-right: 12px !important; /* Same padding as other inputs */
+    }
+
+    /* Remove default arrow in IE */
+    select.form-control::-ms-expand {
+        display: none;
+    }
+
+    /* Make select2 match other form controls */
+    .select2-container--bootstrap4 .select2-selection {
+        height: calc(2.25rem + 2px) !important;
+        padding: .375rem .75rem !important;
+        font-size: 1rem !important;
+        line-height: 1.5 !important;
+        border: 1px solid #ced4da !important;
+        border-radius: .25rem !important;
+    }
+
+    /* Remove select2 dropdown arrow */
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+        display: none !important;
+    }
+
+    /* Fix select2 positioning and spacing */
+    .select2-container {
+        width: 100% !important;
+        margin: 0;
+    }
+
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+        padding: 8px 12px !important;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        padding: 0 !important;
+        line-height: 1.5 !important;
+        color: #495057;
+    }
+
+    /* Remove extra spacing */
+    .select2-container--bootstrap4 {
+        margin: 0 !important;
+    }
+
+    /* Ensure placeholder text aligns with other inputs */
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder {
+        color: #6c757d;
+        line-height: 1.5;
+    }
 </style>
 ';
 
 $additional_js = '
-<!-- jQuery -->
-<script src="../adminlte/plugins/jquery/jquery.min.js"></script>
-<!-- jQuery UI -->
-<script src="../adminlte/plugins/jquery-ui/jquery-ui.min.js"></script>
-<!-- Bootstrap 4 -->
-<script src="../adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
-<!-- Select2 -->
-<script src="../adminlte/plugins/select2/js/select2.full.min.js"></script>
-<!-- DataTables -->
-<script src="../adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
-<script src="../adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+<script src="' . getAssetUrl('plugins/jquery/jquery.min.js') . '"></script>
+<script src="' . getAssetUrl('plugins/jquery-ui/jquery-ui.min.js') . '"></script>
+<script src="' . getAssetUrl('plugins/bootstrap/js/bootstrap.bundle.min.js') . '"></script>
+<script src="' . getAssetUrl('plugins/select2/js/select2.full.min.js') . '"></script>
+<script src="' . getAssetUrl('plugins/datatables/jquery.dataTables.min.js') . '"></script>
+<script src="' . getAssetUrl('plugins/datatables-bs4/js/dataTables.bootstrap4.min.js') . '"></script>
 ';
 
-// Define allowed roles
-$allowed_roles = [
-    'Operational Manager',
-    'Unit Manager',
-    'MIS Analyst',
-    'TQA Manager',
-    'General Manager',
-    'Sr. Manager',
-    'Super_User'
-];
+// Define allowed roles and check permissions
+$allowed_roles = ['Operational Manager', 'Unit Manager', 'MIS Analyst', 'TQA Manager', 'General Manager', 'Sr. Manager', 'Super_User'];
 
-// Check if user is logged in and has permission
 if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowed_roles)) {
     $_SESSION['error'] = "Access Denied. You don't have permission to access this page.";
-    header('Location: ../index.php');
+    header('Location: ' . Router::url('dashboard'));
     exit;
 }
+
+// Start capturing content
+ob_start();
 ?>
 
-<!-- Main content -->
 <div class="row">
     <div class="col-12">
         <!-- Create New KPI Card -->
@@ -115,7 +226,7 @@ if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowed
                     <div class="form-group">
                         <label>Project</label>
                         <select class="form-control select2" name="project" required>
-                            <option value="">Select Project</option>
+                            <option value="">Project</option>
                             <?php
                             try {
                                 $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
@@ -213,6 +324,8 @@ if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowed
             </div>
             <form id="editKPIForm">
                 <input type="hidden" id="editKPIId" name="id">
+                <input type="hidden" id="original_queue" name="original_queue">
+                <input type="hidden" id="original_kpi_metrics" name="original_kpi_metrics">
                 <div class="modal-body">
                     <div class="form-group">
                         <label>Queue</label>
@@ -274,7 +387,6 @@ if (!isset($_SESSION['user_role']) || !in_array($_SESSION['user_role'], $allowed
     </div>
 </div>
 
-<!-- Your existing JavaScript -->
 <script type="text/javascript">
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Select2
@@ -324,6 +436,8 @@ document.addEventListener('DOMContentLoaded', function() {
         $('#editTarget').val(target);
         $('#editTargetType').val(targetType);
         $('#editKPIId').val(id);
+        $('#original_queue').val(queue);
+        $('#original_kpi_metrics').val(kpiMetrics);
 
         // Show the modal
         $('#editKPIModal').modal('show');
@@ -341,6 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         var formData = new FormData(this);
         formData.append('project', project);
+        formData.append('table_name', 'KPI_' + project.replace(/[^a-zA-Z0-9_]/g, '_'));
 
         $.ajax({
             url: '../controller/c_viewer_update.php',
@@ -349,9 +464,14 @@ document.addEventListener('DOMContentLoaded', function() {
             success: function(response) {
                 console.log('Update response:', response);
                 if (response.success) {
+                    // Properly close modal and clean up
                     $('#editKPIModal').modal('hide');
+                    $('.modal-backdrop').remove();
+                    $('body').removeClass('modal-open').css('padding-right', '');
+                    
+                    // Refresh data and show notification
                     $('#summaryProject').trigger('change');
-                    showNotification('KPI updated successfully', 'success');
+                    showNotification('KPI edited successfully', 'success');
                 } else {
                     showNotification(response.error || 'Failed to update KPI', 'error');
                 }
@@ -362,6 +482,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 showNotification('Error updating KPI: ' + error, 'error');
             }
         });
+    });
+
+    // Add modal hidden event handler
+    $('#editKPIModal').on('hidden.bs.modal', function() {
+        // Reset form when modal is closed
+        $('#editKPIForm')[0].reset();
+        // Clean up any remaining backdrop
+        $('.modal-backdrop').remove();
+        $('body').removeClass('modal-open').css('padding-right', '');
     });
 
     // Handle project selection
@@ -504,10 +633,40 @@ document.addEventListener('DOMContentLoaded', function() {
         var fileName = $(this).val().split('\\').pop();
         $(this).next('.custom-file-label').html(fileName || 'Choose file');
     });
+
+    // Handle form submission
+    $('form').on('submit', function(e) {
+        e.preventDefault();
+        
+        $.ajax({
+            url: $(this).attr('action'),
+            type: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                // Clear form
+                $('form')[0].reset();
+                $('.select2').val('').trigger('change');
+                
+                // Show success message
+                showNotification('KPI added successfully', 'success');
+                
+                // Refresh KPI table if it exists
+                if ($('#summaryProject').val()) {
+                    $('#summaryProject').trigger('change');
+                }
+            },
+            error: function(xhr, status, error) {
+                showNotification('Error adding KPI: ' + error, 'error');
+            }
+        });
+    });
 });
 
-// Add this function for showing notifications
+// Update showNotification function
 function showNotification(message, type = 'success') {
+    // Remove any existing notifications
+    $('.floating-alert').remove();
+    
     // Create the notification element
     const alert = $('<div class="alert alert-' + (type === 'success' ? 'success' : 'danger') + ' alert-dismissible fade show floating-alert">' +
         '<button type="button" class="close" data-dismiss="alert">&times;</button>' +
@@ -527,8 +686,6 @@ function showNotification(message, type = 'success') {
 </script>
 
 <?php
+// Store the buffered content
 $content = ob_get_clean();
-require_once '../main_navbar.php';
-?>
-
 ?>
