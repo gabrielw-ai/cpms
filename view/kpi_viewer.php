@@ -25,7 +25,7 @@ if ($isLimitedAccess) {
         $userProject = $stmt->fetchColumn();
         
         if ($userProject) {
-            $tableName = 'kpi_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $userProject);
+            $tableName = 'kpi_' . strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $userProject));
             $_GET['table'] = $tableName;
         }
     } catch (PDOException $e) {
@@ -61,41 +61,68 @@ $additional_css = '
         white-space: nowrap;
         vertical-align: middle;
     }
+
+    /* Add notification styles */
+    .floating-alert {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 250px;
+        max-width: 350px;
+        animation: slideIn 0.5s ease-in-out;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: none;
+    }
+
+    .alert {
+        margin-bottom: 1rem;
+        border: none;
+        border-radius: 4px;
+    }
+
+    .alert-success {
+        background-color: #28a745;
+        color: #fff;
+    }
+
+    .alert-danger {
+        background-color: #dc3545;
+        color: #fff;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .alert .close {
+        color: inherit;
+        opacity: 0.8;
+    }
+
+    .alert .close:hover {
+        opacity: 1;
+    }
 </style>';
 
 // Additional JavaScript
-$additional_js = '
-<!-- Select2 -->
+$additional_js = <<<JAVASCRIPT
+<!-- Required plugins -->
 <script src="../adminlte/plugins/select2/js/select2.full.min.js"></script>
-<!-- DataTables -->
 <script src="../adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
 <script src="../adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
 <script src="../adminlte/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
-<script>
-$(document).ready(function() {
-    // Initialize Select2 Elements
-    $(".select2").select2({
-        theme: "bootstrap4"
-    });
-
-    // Initialize DataTable
-    $("#kpiTable").DataTable({
-        "responsive": false,
-        "autoWidth": false,
-        "scrollX": true,
-        "scrollCollapse": true,
-        "pageLength": 25,
-        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
-        "order": [[0, "asc"], [1, "asc"]],
-        "columnDefs": [
-            {
-                "targets": "_all",
-                "defaultContent": "-"
-            }
-        ]
-    });
-});
-</script>';
+<script src="../adminlte/plugins/bs-custom-file-input/bs-custom-file-input.min.js"></script>
+<!-- Custom JS -->
+<script src="../public/kpi_viewer.js"></script>
+JAVASCRIPT;
 
 // Start output buffering for main content
 ob_start();
@@ -133,17 +160,19 @@ ob_start();
                     try {
                         $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
                         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                            $tableName = 'kpi_' . preg_replace('/[^a-zA-Z0-9_]/', '_', $row['project_name']);
-                                        $selected = (isset($_GET['table']) && $_GET['table'] === $tableName) ? 'selected' : '';
-                                        // Add default view=weekly to the form submission
-                                        if ($selected && !isset($_GET['view'])) {
-                                            echo "<script>window.location.href = '?table=" . urlencode($tableName) . "&view=weekly';</script>";
-                                        }
-                                        echo "<option value='" . htmlspecialchars($tableName) . "' {$selected}>" . 
-                                             htmlspecialchars($row['project_name']) . "</option>";
+                            $tableName = 'kpi_' . strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $row['project_name']));
+                            $selected = (isset($_GET['table']) && strtolower($_GET['table']) === $tableName) ? 'selected' : '';
+                            
+                            if ($selected && !isset($_GET['view'])) {
+                                $defaultUrl = "?table=" . urlencode($tableName) . "&view=weekly";
+                                echo "<option value='" . htmlspecialchars($tableName) . "' {$selected} data-default-url='{$defaultUrl}'>";
+                            } else {
+                                echo "<option value='" . htmlspecialchars($tableName) . "' {$selected}>";
+                            }
+                            echo htmlspecialchars($row['project_name']) . "</option>";
                         }
                     } catch (PDOException $e) {
-                                    echo "<option value=''>Error loading projects</option>";
+                        echo "<option value=''>Error loading projects</option>";
                     }
                     ?>
                             </select>
@@ -206,7 +235,7 @@ ob_start();
                             <tbody>
         <?php
                                 try {
-                                    $tableName = $_GET['table'] ?? '';
+                                    $tableName = strtolower($_GET['table'] ?? '');
                                     if ($tableName) {
                                         // Get view type
                                         $viewType = isset($_GET['view']) && $_GET['view'] === 'monthly' ? 'monthly' : 'weekly';
@@ -321,7 +350,7 @@ ob_start();
             </div>
             <form action="../controller/c_import_kpi.php" method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
-                    <input type="hidden" name="table_name" value="<?php echo htmlspecialchars($_GET['table'] ?? ''); ?>">
+                    <input type="hidden" name="table_name" value="<?php echo htmlspecialchars(strtolower($_GET['table'] ?? '')); ?>">
                     <input type="hidden" name="view_type" value="<?php echo htmlspecialchars($_GET['view'] ?? 'weekly'); ?>">
                     
                     <div class="form-group">
@@ -348,7 +377,7 @@ ob_start();
     </div>
 </div>
 
-<!-- Add Edit Modal -->
+<!-- Edit Modal -->
 <div class="modal fade" id="editModal" tabindex="-1" role="dialog">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -358,13 +387,10 @@ ob_start();
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form action="../controller/c_viewer_update.php" method="POST">
-            <div class="modal-body">
-                    <input type="hidden" name="table_name" value="<?php echo htmlspecialchars($_GET['table'] ?? ''); ?>">
-                    <input type="hidden" name="view_type" value="<?php echo htmlspecialchars($_GET['view'] ?? 'weekly'); ?>">
-                    <input type="hidden" name="original_queue" id="original_queue">
-                    <input type="hidden" name="original_kpi_metrics" id="original_kpi_metrics">
-                    
+            <form id="editKPIForm" onsubmit="return false">
+                <input type="hidden" id="original_queue" name="original_queue">
+                <input type="hidden" id="original_kpi_metrics" name="original_kpi_metrics">
+                <div class="modal-body">
                     <div class="form-group">
                         <label for="queue">Queue</label>
                         <input type="text" class="form-control" id="queue" name="queue" required>
@@ -375,7 +401,7 @@ ob_start();
                     </div>
                     <div class="form-group">
                         <label for="target">Target</label>
-                        <input type="text" class="form-control" id="target" name="target" required>
+                        <input type="number" class="form-control" id="target" name="target" step="0.01" required>
                     </div>
                     <div class="form-group">
                         <label for="target_type">Target Type</label>
@@ -388,7 +414,7 @@ ob_start();
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                     <button type="submit" class="btn btn-primary">Save Changes</button>
-            </div>
+                </div>
             </form>
         </div>
     </div>
@@ -399,82 +425,17 @@ ob_start();
 $content = ob_get_clean();
 
 // Add to $additional_js
-$additional_js .= '
-<!-- bs-custom-file-input -->
+$additional_js = <<<JAVASCRIPT
+<!-- Required plugins -->
+<script src="../adminlte/plugins/select2/js/select2.full.min.js"></script>
+<script src="../adminlte/plugins/datatables/jquery.dataTables.min.js"></script>
+<script src="../adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js"></script>
+<script src="../adminlte/plugins/datatables-responsive/js/dataTables.responsive.min.js"></script>
 <script src="../adminlte/plugins/bs-custom-file-input/bs-custom-file-input.min.js"></script>
-<script>
-$(document).ready(function() {
-    bsCustomFileInput.init();
-    
-    // Show success/error messages if they exist
-    ';
+<!-- Custom JS -->
+<script src="../public/kpi_viewer.js"></script>
+JAVASCRIPT;
 
-if (isset($_SESSION['success'])) {
-    $additional_js .= 'showNotification("' . addslashes($_SESSION['success']) . '", "success");';
-    unset($_SESSION['success']);
-}
-
-if (isset($_SESSION['error'])) {
-    $additional_js .= 'showNotification("' . addslashes($_SESSION['error']) . '", "error");';
-    unset($_SESSION['error']);
-}
-
-$additional_js .= '
-});
-
-function showNotification(message, type) {
-    $(document).Toasts("create", {
-        class: type === "success" ? "bg-success" : "bg-danger",
-        body: message,
-        autohide: true,
-        delay: 3000,
-        hide: true,
-        closeButton: false
-    });
-}
-
-$(document).ready(function() {
-    // Handle edit button clicks
-    $(".edit-kpi").click(function() {
-        var queue = $(this).data("queue");
-        var kpi_metrics = $(this).data("kpi_metrics");
-        var target = $(this).data("kpi_target");
-        var target_type = $(this).data("target_type");
-        
-        $("#original_queue").val(queue);
-        $("#original_kpi_metrics").val(kpi_metrics);
-        $("#queue").val(queue);
-        $("#kpi_metrics").val(kpi_metrics);
-        $("#target").val(target);
-        $("#target_type").val(target_type);
-    });
-    
-    // Handle delete button clicks
-    $(".delete-kpi").click(function() {
-        if (confirm("Are you sure you want to delete this KPI?")) {
-            var form = $("<form>")
-                .attr("method", "POST")
-                .attr("action", "../controller/c_viewer_del.php");
-                
-            form.append($("<input>")
-                .attr("type", "hidden")
-                .attr("name", "table_name")
-                .val("' . htmlspecialchars($_GET['table'] ?? '') . '"));
-                
-            form.append($("<input>")
-                .attr("type", "hidden")
-                .attr("name", "queue")
-                .val($(this).data("queue")));
-                
-            form.append($("<input>")
-                .attr("type", "hidden")
-                .attr("name", "kpi_metrics")
-                .val($(this).data("kpi_metrics")));
-            
-            $("body").append(form);
-            form.submit();
-        }
-    });
-});
-</script>';
+// Clear session messages
+unset($_SESSION['success'], $_SESSION['error']);
 ?>

@@ -70,4 +70,7 @@ return [
     // User Settings route
     'user/settings' => 'view/user_settings.php',
     'user/settings/update' => 'controller/c_user_settings.php',
+    
+    // KPI Delete route
+    'kpi/delete' => 'controller/c_viewer_del.php',
 ];

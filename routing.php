@@ -111,3 +111,6 @@ Router::add('project/get', '/controller/c_project_namelist.php');
 // Add User Settings route
 Router::add('user/settings', '/user/settings');  // URL path 
 
+// Add this with the other Router::add calls
+Router::add('kpi/delete', '/controller/c_viewer_del.php');
+

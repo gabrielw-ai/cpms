@@ -119,7 +119,7 @@ function createProjectTables($conn, $baseTableName) {
             month INT NOT NULL,
             value DECIMAL(10,2) DEFAULT NULL,
             UNIQUE KEY unique_record (kpi_id, month),
-            FOREIGN KEY (kpi_id) REFERENCES `{$baseTableName}_MON`(id) ON DELETE CASCADE
+            FOREIGN KEY (kpi_id) REFERENCES `{$baseTableName}_mon`(id) ON DELETE CASCADE
         )";
         
         error_log("Creating monthly values table with SQL: " . $monthlyValuesSQL);
@@ -154,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         createProjectTables($conn, $baseTableName);
 
         // Insert KPI definition into both tables
-        $tables = [$baseTableName, $baseTableName . "_MON"];
+        $tables = [$baseTableName, $baseTableName . "_mon"];
         
         foreach ($tables as $tableName) {
             $stmt = $conn->prepare("
@@ -193,28 +193,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $tableName = "KPI_" . str_replace(" ", "_", strtoupper($_POST['project']));
+            // Get base table name
+            $baseTableName = "kpi_" . strtolower(str_replace(" ", "_", $_POST['project']));
             
-            // Update KPI
-            $stmt = $conn->prepare("
-                UPDATE `$tableName` 
-                SET queue = ?, 
-                    kpi_metrics = ?, 
-                    target = ?, 
-                    target_type = ?
-                WHERE id = ?
-            ");
-            
-            $stmt->execute([
-                $_POST['queue'],
-                $_POST['kpi_metrics'],
-                $_POST['target'],
-                $_POST['target_type'],
-                $_POST['id']
-            ]);
-            
-            echo json_encode(['success' => true]);
-            
+            // Define both weekly and monthly tables
+            $tables = [
+                $baseTableName,             // Weekly table
+                $baseTableName . "_mon"     // Monthly table
+            ];
+
+            // Start transaction
+            $conn->beginTransaction();
+
+            try {
+                foreach ($tables as $tableName) {
+                    // Update KPI in each table
+                    $stmt = $conn->prepare("
+                        UPDATE `$tableName` 
+                        SET queue = ?, 
+                            kpi_metrics = ?, 
+                            target = ?, 
+                            target_type = ?
+                        WHERE id = ?
+                    ");
+                    
+                    $stmt->execute([
+                        $_POST['queue'],
+                        $_POST['kpi_metrics'],
+                        $_POST['target'],
+                        $_POST['target_type'],
+                        $_POST['id']
+                    ]);
+                }
+
+                // Commit transaction
+                $conn->commit();
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'KPI updated successfully in both weekly and monthly tables'
+                ]);
+                
+            } catch (Exception $e) {
+                $conn->rollBack();
+                throw $e;
+            }
+                
         } catch (Exception $e) {
             error_log("Error updating KPI: " . $e->getMessage());
             echo json_encode([

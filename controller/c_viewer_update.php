@@ -8,60 +8,109 @@ try {
         throw new Exception('Invalid request method');
     }
 
-    // Validate required fields
-    $required_fields = ['id', 'case_chronology', 'consequences', 
-                       'effective_date', 'end_date'];
+    // Validate required fields for KPI update
+    $required_fields = [
+        'table_name', 
+        'queue', 
+        'kpi_metrics', 
+        'target', 
+        'target_type',
+        'original_queue',
+        'original_kpi_metrics'
+    ];
     
     foreach ($required_fields as $field) {
-        if (!isset($_POST[$field])) {
+        if (!isset($_POST[$field]) || trim($_POST[$field]) === '') {
             throw new Exception("Missing required field: $field");
         }
     }
 
-    // Handle file upload if new file is provided
-    $supporting_doc_sql = '';
-    $params = [
-        ':id' => $_POST['id'],
-        ':case_chronology' => $_POST['case_chronology'],
-        ':consequences' => $_POST['consequences'],
-        ':effective_date' => $_POST['effective_date'],
-        ':end_date' => $_POST['end_date']
-    ];
+    $tableName = trim($_POST['table_name']);
+    
+    // Define both weekly and monthly table names
+    $weeklyTable = $tableName;
+    $monthlyTable = $tableName . "_mon";
 
-    if (!empty($_FILES['supporting_doc']['name'])) {
-        $upload_dir = 'uploads/supporting_docs/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
+    // Start transaction
+    $conn->beginTransaction();
+
+    try {
+        // Update Weekly KPI
+        $weeklyKpiId = null;
+        $sqlGetWeeklyId = "SELECT id FROM `$weeklyTable` 
+                          WHERE queue = ? AND kpi_metrics = ?";
+        $stmtWeeklyId = $conn->prepare($sqlGetWeeklyId);
+        $stmtWeeklyId->execute([
+            $_POST['original_queue'],
+            $_POST['original_kpi_metrics']
+        ]);
+        $weeklyKpiId = $stmtWeeklyId->fetch(PDO::FETCH_COLUMN);
+
+        if ($weeklyKpiId) {
+            // Update weekly KPI
+            $sqlWeekly = "UPDATE `$weeklyTable` SET 
+                         queue = ?,
+                         kpi_metrics = ?,
+                         target = ?,
+                         target_type = ?
+                         WHERE id = ?";
+            $stmtWeekly = $conn->prepare($sqlWeekly);
+            $stmtWeekly->execute([
+                $_POST['queue'],
+                $_POST['kpi_metrics'],
+                $_POST['target'],
+                $_POST['target_type'],
+                $weeklyKpiId
+            ]);
         }
 
-        $file_ext = pathinfo($_FILES['supporting_doc']['name'], PATHINFO_EXTENSION);
-        $file_name = uniqid('doc_') . '.' . $file_ext;
-        $file_path = $upload_dir . $file_name;
+        // Update Monthly KPI
+        $monthlyKpiId = null;
+        $sqlGetMonthlyId = "SELECT id FROM `$monthlyTable` 
+                           WHERE queue = ? AND kpi_metrics = ?";
+        $stmtMonthlyId = $conn->prepare($sqlGetMonthlyId);
+        $stmtMonthlyId->execute([
+            $_POST['original_queue'],
+            $_POST['original_kpi_metrics']
+        ]);
+        $monthlyKpiId = $stmtMonthlyId->fetch(PDO::FETCH_COLUMN);
 
-        if (move_uploaded_file($_FILES['supporting_doc']['tmp_name'], $file_path)) {
-            $supporting_doc_sql = ', supporting_doc_url = :supporting_doc_url';
-            $params[':supporting_doc_url'] = $file_path;
+        if ($monthlyKpiId) {
+            // Update monthly KPI
+            $sqlMonthly = "UPDATE `$monthlyTable` SET 
+                          queue = ?,
+                          kpi_metrics = ?,
+                          target = ?,
+                          target_type = ?
+                          WHERE id = ?";
+            $stmtMonthly = $conn->prepare($sqlMonthly);
+            $stmtMonthly->execute([
+                $_POST['queue'],
+                $_POST['kpi_metrics'],
+                $_POST['target'],
+                $_POST['target_type'],
+                $monthlyKpiId
+            ]);
         }
-    }
 
-    $sql = "UPDATE ccs_rules SET 
-            case_chronology = :case_chronology,
-            consequences = :consequences,
-            effective_date = :effective_date,
-            end_date = :end_date" . 
-            $supporting_doc_sql . 
-            " WHERE id = :id";
+        // If neither weekly nor monthly KPI was found
+        if (!$weeklyKpiId && !$monthlyKpiId) {
+            throw new Exception('KPI not found in either weekly or monthly tables');
+        }
 
-    $stmt = $conn->prepare($sql);
-    $result = $stmt->execute($params);
+        // Commit transaction
+        $conn->commit();
 
-    if ($result) {
         echo json_encode([
             'success' => true,
-            'message' => 'Rule updated successfully'
+            'message' => 'KPI updated successfully in both weekly and monthly tables'
         ]);
-    } else {
-        throw new Exception('Failed to update rule');
+
+    } catch (PDOException $e) {
+        if ($conn->inTransaction()) {
+            $conn->rollBack();
+        }
+        throw new Exception('Database error: ' . $e->getMessage());
     }
 
 } catch (Exception $e) {
