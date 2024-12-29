@@ -1,5 +1,0 @@
-kpi/metrics
--> when edited, pages wont close automatically
-kpi/viewer
--> {"success":false,"message":"Missing rule ID"} when deleted routed to demos/controller/c_viewer_del.php
---> status : error // Parse error: syntax error, unexpected identifier "select" in 

@@ -127,44 +127,43 @@ $(document).ready(function() {
     $('#editRuleForm').on('submit', function(e) {
         e.preventDefault();
         
-        // Create a regular object with form data
-        var formData = {
-            action: 'edit',
-            id: $('#edit_id').val(),
-            project: $('#edit_project').val(),
-            case_chronology: $('#edit_case_chronology').val(),
-            consequences: $('#edit_consequences').val(),
-            effective_date: $('#edit_effective_date').val(),
-            end_date: $('#edit_end_date').val()
-        };
-
-        // Handle file upload if present
-        var fileInput = $('#edit_supporting_doc')[0];
-        if (fileInput && fileInput.files.length > 0) {
-            formData.supporting_doc = fileInput.files[0];
-        }
-        
-        console.log('Sending update data:', formData);
-
-        $.ajax({
-            url: baseUrl + 'ccs/update',
-            type: 'POST',
-            data: formData,
-            success: function(response) {
-                console.log('Update response:', response);
-                if (response.success) {
-                    $('#editRuleModal').modal('hide');
-                    table.ajax.reload();
-                    showAlert('success', response.message);
-                } else {
-                    showAlert('error', response.message || 'Failed to update rule');
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('Update error:', error);
-                showAlert('error', 'Error updating rule: ' + error);
+        try {
+            // Create FormData object
+            var formData = new FormData(this); // Use the form directly
+            formData.append('action', 'edit');
+            
+            // Log the form data for debugging
+            console.log('Form data entries:');
+            for (var pair of formData.entries()) {
+                console.log(pair[0] + ': ' + pair[1]);
             }
-        });
+
+            $.ajax({
+                url: baseUrl + 'ccs/update',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                cache: false,
+                success: function(response) {
+                    console.log('Update response:', response);
+                    if (response.success) {
+                        $('#editRuleModal').modal('hide');
+                        table.ajax.reload();
+                        showAlert('success', response.message);
+                    } else {
+                        showAlert('error', response.message || 'Failed to update rule');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Update error:', error);
+                    showAlert('error', 'Error updating rule: ' + error);
+                }
+            });
+        } catch (error) {
+            console.error('Form submission error:', error);
+            showAlert('error', 'Error submitting form: ' + error.message);
+        }
     });
 
     // Edit button handler
@@ -173,10 +172,21 @@ $(document).ready(function() {
         editRule(id);
     });
 
-    // File input handler
-    $(document).on('change', '.custom-file-input', function() {
-        var fileName = $(this).val().split('\\').pop();
-        $(this).next('.custom-file-label').html(fileName || 'Choose file');
+    // File input handler - Simplified version
+    $(document).on('change', '.custom-file-input', function(e) {
+        var $input = $(this);
+        var $label = $input.next('.custom-file-label');
+        var fileName = '';
+        
+        try {
+            if (e.target.files && e.target.files.length > 0) {
+                fileName = e.target.files[0].name;
+            }
+        } catch (error) {
+            console.error('Error getting file name:', error);
+        }
+        
+        $label.html(fileName || 'Choose file');
     });
 
     // Modal Select2 initialization
@@ -247,7 +257,7 @@ function editRule(id) {
     var row = table.rows().data().toArray().find(r => r.id == id);
     
     if (row) {
-        console.log('Editing row:', row); // Debug log
+        console.log('Editing row:', row);
         
         $('#editRuleModal').modal('show');
         
@@ -258,6 +268,9 @@ function editRule(id) {
         $('#edit_name').val(row.name);
         $('#edit_role').val(row.role);
         $('#edit_case_chronology').val(row.case_chronology);
+        
+        // Set max date for effective date
+        $('#edit_effective_date').attr('max', getTodayDate());
         $('#edit_effective_date').val(row.effective_date);
         $('#edit_end_date').val(row.end_date);
         
@@ -296,16 +309,16 @@ function showAlert(type, message) {
 
 // Update the date validation and end date calculation
 $(document).on('change', '#edit_effective_date', function() {
-    var effectiveDate = new Date($(this).val());
+    var selectedDate = new Date($(this).val());
     var today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    if (effectiveDate > today) {
+    if (selectedDate > today) {
         showAlert('error', 'Effective date cannot be later than today');
-        $(this).val(today.toISOString().split('T')[0]);
+        $(this).val(getTodayDate());
     }
 
-    // Recalculate end date when effective date changes
+    // Recalculate end date
     const consequences = $('#edit_consequences').val();
     if (consequences) {
         const endDate = calculateEndDate($(this).val(), consequences);
@@ -337,6 +350,12 @@ function calculateEndDate(effectiveDate, consequences) {
     }
     
     return date.toISOString().split('T')[0];
+}
+
+// Add this function to get today's date in YYYY-MM-DD format
+function getTodayDate() {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
 }
 
 // Your existing editRule and showNotification functions... 

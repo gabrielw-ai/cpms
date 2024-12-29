@@ -781,7 +781,7 @@ $additional_js .= '
                 <h5 class="modal-title">Edit Rule</h5>
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
-            <form id="editRuleForm">
+            <form id="editRuleForm" enctype="multipart/form-data">
                 <div class="modal-body">
                     <input type="hidden" id="edit_id" name="id">
                     <input type="hidden" id="edit_project" name="project">
@@ -820,8 +820,12 @@ $additional_js .= '
                     </div>
                     <div class="form-group">
                         <label>Effective Date</label>
-                        <input type="date" class="form-control" id="edit_effective_date" name="effective_date" 
-                               max="<?php echo date('Y-m-d'); ?>" required>
+                        <input type="date" 
+                               class="form-control" 
+                               id="edit_effective_date" 
+                               name="effective_date" 
+                               max="<?php echo date('Y-m-d'); ?>" 
+                               required>
                     </div>
                     <div class="form-group">
                         <label>End Date</label>

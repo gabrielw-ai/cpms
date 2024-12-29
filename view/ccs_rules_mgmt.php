@@ -104,12 +104,19 @@ $additional_css = '
 
 // Additional JavaScript
 $additional_js = '
-<script>var baseUrl = "' . Router::url('') . '";</script>
+<!-- jQuery -->
 <script src="' . Router::url('adminlte/plugins/jquery/jquery.min.js') . '"></script>
+<!-- Bootstrap -->
 <script src="' . Router::url('adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') . '"></script>
+<!-- Select2 -->
 <script src="' . Router::url('adminlte/plugins/select2/js/select2.full.min.js') . '"></script>
+<!-- Custom File Input -->
 <script src="' . Router::url('adminlte/plugins/bs-custom-file-input/bs-custom-file-input.min.js') . '"></script>
-<script src="' . Router::url('public/dist/js/ccs_rules_mgmt.js') . '"></script>';
+<!-- Base URL -->
+<script>var baseUrl = "' . Router::url('') . '";</script>
+<!-- Custom JS -->
+<script src="' . Router::url('public/dist/js/ccs_rules_mgmt.js') . '"></script>
+';
 
 ob_start();
 ?>
@@ -171,29 +178,6 @@ ob_start();
                                         </select>
                                     </div>
 
-                                    <!-- Initialize Select2 in JavaScript -->
-                                    <script>
-                                    $(document).ready(function() {
-                                        // Initialize Select2
-                                        $("#project").select2({
-                                            theme: "bootstrap4",
-                                            width: "100%",
-                                            placeholder: "Select a project",
-                                            allowClear: true
-                                        });
-
-                                        // Project change handler
-                                        $("#project").on("change", function() {
-                                            const selectedProject = $(this).val();
-                                            console.log('Selected project:', selectedProject);
-                                            
-                                            if (selectedProject) {
-                                                // Your existing code...
-                                            }
-                                        });
-                                    });
-                                    </script>
-
                                     <!-- Name -->
                                     <div class="form-group">
                                         <label>Name</label>
@@ -242,7 +226,12 @@ ob_start();
                                     <!-- Effective Date -->
                                     <div class="form-group">
                                         <label for="effective_date">Effective Date</label>
-                                        <input type="date" class="form-control" id="effective_date" name="effective_date" required>
+                                        <input type="date" 
+                                               class="form-control" 
+                                               id="effective_date" 
+                                               name="effective_date" 
+                                               max="<?php echo date('Y-m-d'); ?>" 
+                                               required>
                                     </div>
 
                                     <!-- Supporting Document -->
@@ -271,7 +260,7 @@ ob_start();
 
 <?php if ($isEdit): ?>
 <script>
-    var ruleData = <?php echo json_encode($ruleData); ?>;
+var ruleData = <?php echo json_encode($ruleData); ?>;
 </script>
 <?php endif; ?>
 

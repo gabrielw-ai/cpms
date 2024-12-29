@@ -71,11 +71,20 @@ $additional_css .= '
 
 // Add this to include DataTables JavaScript files
 $additional_js = '
+<!-- jQuery -->
+<script src="' . Router::url('adminlte/plugins/jquery/jquery.min.js') . '"></script>
+<!-- Bootstrap -->
+<script src="' . Router::url('adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js') . '"></script>
 <!-- DataTables -->
 <script src="' . Router::url('adminlte/plugins/datatables/jquery.dataTables.min.js') . '"></script>
 <script src="' . Router::url('adminlte/plugins/datatables-bs4/js/dataTables.bootstrap4.min.js') . '"></script>
 <script src="' . Router::url('adminlte/plugins/datatables-responsive/js/dataTables.responsive.min.js') . '"></script>
-<script src="' . Router::url('adminlte/plugins/datatables-responsive/js/responsive.bootstrap4.min.js') . '"></script>';
+<script src="' . Router::url('adminlte/plugins/datatables-responsive/js/responsive.bootstrap4.min.js') . '"></script>
+<!-- Base URL -->
+<script>var baseUrl = "' . Router::url('') . '";</script>
+<!-- Custom JS -->
+<script src="' . Router::url('public/dist/js/project_namelist.js') . '"></script>
+';
 
 // Handle session messages
 if (isset($_SESSION['success_message'])) {
@@ -237,203 +246,6 @@ if (isset($_SESSION['error_message'])) {
         </div>
     </div>
 </div>
-
-<script>
-// Define baseUrl
-const baseUrl = '<?php echo Router::url(''); ?>';
-
-function showNotification(message, type = 'success') {
-    // Remove any existing notifications
-    $('.floating-alert').remove();
-    
-    // Create the notification element
-    const alert = $('<div class="alert alert-' + type + ' alert-dismissible fade show floating-alert">' +
-        '<button type="button" class="close" data-dismiss="alert">&times;</button>' +
-        message +
-        '</div>');
-
-    // Add to body
-    $('body').append(alert);
-
-    // Auto dismiss after 3 seconds
-    setTimeout(function() {
-        alert.fadeOut('slow', function() {
-            $(this).remove();
-        });
-    }, 3000);
-}
-
-function editProject(projectId) {
-    console.log('Editing project:', projectId);
-    
-    fetch(`${baseUrl}project/get?get_project=${projectId}`)
-        .then(async response => {
-            const text = await response.text();
-            console.log('Raw response:', text);
-            try {
-                const data = JSON.parse(text);
-                if (data) {
-                    document.getElementById('edit_id').value = data.id;
-                    document.getElementById('edit_main_project').value = data.main_project;
-                    document.getElementById('edit_project_name').value = data.project_name;
-                    document.getElementById('edit_unit_name').value = data.unit_name;
-                    document.getElementById('edit_job_code').value = data.job_code;
-                    $('#editProjectModal').modal('show');
-                } else {
-                    throw new Error('Project data not found');
-                }
-            } catch (e) {
-                console.error('Parse error:', e);
-                showNotification('Error loading project data: ' + e.message, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Fetch error:', error);
-            showNotification('Error loading project data', 'danger');
-        });
-}
-
-function deleteProject(projectId) {
-    if (confirm('Are you sure you want to delete this project?')) {
-        console.log('Deleting project:', projectId);
-        
-        // Show loading notification
-        showNotification('Deleting project...', 'info');
-        
-        fetch(`${baseUrl}project/delete?delete_project=${projectId}`)
-            .then(async response => {
-                const text = await response.text();
-                console.log('Raw response:', text);
-                
-                try {
-                    const data = JSON.parse(text);
-                    if (data.success) {
-                        // Remove the row immediately for better UX
-                        $(`button[onclick="deleteProject(${projectId})"]`).closest('tr').fadeOut(300, function() {
-                            $(this).remove();
-                        });
-                        
-                        // Show success notification
-                        showNotification(data.message || 'Project deleted successfully', 'success');
-                        
-                        // Reload page after a delay
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1000);
-                    } else {
-                        throw new Error(data.message || 'Failed to delete project');
-                    }
-                } catch (e) {
-                    console.error('Error:', e);
-                    showNotification(e.message, 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Delete error:', error);
-                showNotification('Error deleting project: ' + error.message, 'danger');
-            });
-    }
-}
-
-// Add form submission handlers
-$(document).ready(function() {
-    // Add Project form handler
-    $('#addProjectModal form').on('submit', function(e) {
-        e.preventDefault();
-        
-        // Show loading notification
-        showNotification('Adding project...', 'info');
-        
-        $.ajax({
-            url: $(this).attr('action'),
-            type: 'POST',
-            data: $(this).serialize(),
-            success: function(response) {
-                $('#addProjectModal').modal('hide');
-                showNotification('Project added successfully', 'success');
-                setTimeout(() => {
-                    window.location.href = baseUrl + 'projects';
-                }, 1000);
-            },
-            error: function(xhr) {
-                showNotification('Error adding project', 'danger');
-            }
-        });
-    });
-
-    // Edit Project form handler
-    $('#editProjectModal form').on('submit', function(e) {
-        e.preventDefault();
-        
-        // Show loading notification
-        showNotification('Updating project...', 'info');
-        
-        fetch($(this).attr('action'), {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams($(this).serialize())
-        })
-        .then(async response => {
-            const text = await response.text();
-            try {
-                const data = JSON.parse(text);
-                if (data.success) {
-                    $('#editProjectModal').modal('hide');
-                    showNotification(data.message, 'success');
-                    setTimeout(() => {
-                        window.location.href = baseUrl + 'projects';
-                    }, 1000);
-                } else {
-                    throw new Error(data.message || 'Failed to update project');
-                }
-            } catch (e) {
-                console.error('Error:', e);
-                showNotification(e.message, 'danger');
-            }
-        })
-        .catch(error => {
-            console.error('Update error:', error);
-            showNotification('Error updating project: ' + error.message, 'danger');
-        });
-    });
-});
-
-$(document).ready(function() {
-    var table = $('#projectTable').DataTable({
-        "responsive": true,
-        "autoWidth": false,
-        "pageLength": 10,
-        "order": [[1, 'asc']], // Sort by Main Project column
-        "columnDefs": [
-            {
-                "targets": 0,
-                "orderable": false,
-                "searchable": false
-            },
-            {
-                "targets": -1, // Last column (Actions)
-                "orderable": false,
-                "searchable": false
-            }
-        ],
-        "drawCallback": function(settings) {
-            // Update row numbers after draw
-            this.api().column(0).nodes().each(function(cell, i) {
-                cell.innerHTML = i + 1;
-            });
-        },
-        "language": {
-            "search": "Search:",
-            "lengthMenu": "Show _MENU_ entries per page",
-            "info": "Showing _START_ to _END_ of _TOTAL_ entries",
-            "infoEmpty": "Showing 0 to 0 of 0 entries",
-            "infoFiltered": "(filtered from _MAX_ total records)"
-        }
-    });
-});
-</script>
 
 <?php
 $content = ob_get_clean();
