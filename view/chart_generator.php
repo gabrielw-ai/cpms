@@ -48,33 +48,43 @@ $(document).ready(function() {
         const period = $("#period").val();
         
         if (!project) {
-            $("#kpi_metrics").html("<option value=\"\">Select Project First</option>").prop("disabled", true);
+            $("#kpi_metrics").html("<option value=\'\'>Select Project First</option>").prop("disabled", true);
             return;
         }
 
         const tableName = project + (period === "monthly" ? "_mon" : "");
         
         // Show loading
-        $("#kpi_metrics").html("<option value=\"\">Loading...</option>").prop("disabled", true);
+        $("#kpi_metrics").html("<option value=\'\'>Loading...</option>").prop("disabled", true);
         
         // Fetch metrics
         fetch(`../controller/get_kpi_metrics.php?table=${encodeURIComponent(tableName)}`)
-            .then(response => response.json())
-            .then(metrics => {
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(\'Network response was not ok\');
+                }
+                return response.json();
+            })
+            .then(data => {
                 const select = $("#kpi_metrics");
-                select.empty().append("<option value=\"\">Select KPI Metric</option>");
+                select.empty().append("<option value=\'\'>Select KPI Metric</option>");
                 
-                if (Array.isArray(metrics) && metrics.length > 0) {
-                    metrics.forEach(metric => {
+                if (Array.isArray(data) && data.length > 0) {
+                    data.forEach(metric => {
                         select.append(new Option(metric, metric));
                     });
                     select.prop("disabled", false);
+                } else if (data.error) {
+                    throw new Error(data.error);
                 } else {
-                    select.html("<option value=\"\">No metrics found</option>");
+                    select.html("<option value=\'\'>No metrics found</option>");
                 }
             })
-            .catch(() => {
-                $("#kpi_metrics").html("<option value=\"\">Error loading metrics</option>").prop("disabled", true);
+            .catch(error => {
+                console.error(\'Error:\', error);
+                $("#kpi_metrics")
+                    .html("<option value=\'\'>Error loading metrics</option>")
+                    .prop("disabled", true);
             });
     });
 

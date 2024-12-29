@@ -6,6 +6,11 @@ return [
     'dashboard' => 'view/dashboard.php',
     'home' => 'view/dashboard.php',
     
+    // Authentication routes
+    'login' => 'view/login.php',
+    'auth/login' => 'controller/c_login.php',
+    'logout' => 'controller/c_logout.php',
+    
     // Public routes
     'login' => 'view/login.php',
     'logout' => 'controller/c_logout.php',

@@ -2,30 +2,31 @@
 require_once dirname(__DIR__) . '/controller/conn.php';
 global $conn;
 
-// Debug logging
-error_log("=== KPI Metrics Request ===");
-error_log("Raw project parameter: " . print_r($_GET, true));
+header('Content-Type: application/json');
 
-if (isset($_GET['project'])) {
-    // Don't modify the project name if it's already formatted
-    $tableName = strtolower($_GET['project']); // Force everything to lowercase
-    error_log("Final table name to query: " . $tableName);
-    
-    try {
-        // Log the query we're about to execute
-        $query = "SELECT DISTINCT kpi_metrics FROM $tableName ORDER BY kpi_metrics";
-        error_log("Executing query: " . $query);
-        
-        $stmt = $conn->prepare($query);
-        $stmt->execute();
-        $metrics = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        echo json_encode(['success' => true, 'data' => $metrics]);
-    } catch (PDOException $e) {
-        error_log("Database error: " . $e->getMessage());
-        echo json_encode(['success' => false, 'error' => 'Error fetching metrics']);
+try {
+    if (!isset($_GET['table'])) {
+        throw new Exception('Table parameter is required');
     }
-} else {
-    error_log("No project parameter received");
-    echo json_encode(['success' => false, 'error' => 'Project not specified']);
+
+    $tableName = $_GET['table'];
+    
+    // Verify if table exists
+    $stmt = $conn->query("SHOW TABLES LIKE '$tableName'");
+    if ($stmt->rowCount() === 0) {
+        throw new Exception('Invalid table name');
+    }
+
+    // Get distinct KPI metrics from the table
+    $sql = "SELECT DISTINCT kpi_metrics FROM `$tableName` WHERE kpi_metrics IS NOT NULL ORDER BY kpi_metrics";
+    $stmt = $conn->query($sql);
+    $metrics = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+    echo json_encode($metrics);
+
+} catch (Exception $e) {
+    error_log("Error getting KPI metrics: " . $e->getMessage());
+    http_response_code(400);
+    echo json_encode(['error' => $e->getMessage()]);
 }
 ?> 

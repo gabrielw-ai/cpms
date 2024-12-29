@@ -38,6 +38,13 @@ class Router {
             $uri = 'dashboard';
         }
         
+        // Special handling for login page
+        if ($uri === 'login') {
+            define('ROUTING_INCLUDE', true);
+            require __DIR__ . '/view/login.php';
+            return;
+        }
+        
         // Check defined routes
         if (isset($this->instanceRoutes[$uri])) {
             $file = __DIR__ . '/' . $this->instanceRoutes[$uri];
@@ -113,4 +120,8 @@ Router::add('user/settings', '/user/settings');  // URL path
 
 // Add this with the other Router::add calls
 Router::add('kpi/delete', '/controller/c_viewer_del.php');
+
+// In the static routes section
+Router::add('login', '/login');  // Add this line
+Router::add('auth/login', '/controller/c_login.php');  // Add this line
 

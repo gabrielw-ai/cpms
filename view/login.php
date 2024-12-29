@@ -9,6 +9,12 @@ if (isset($_SESSION['user_nik'])) {
     header('Location: ' . Router::url('dashboard'));
     exit;
 }
+
+// Only check for ROUTING_INCLUDE if not accessing directly through the login route
+if (!defined('ROUTING_INCLUDE') && $_SERVER['REQUEST_URI'] !== Router::url('login')) {
+    header('Location: ' . Router::url('login'));
+    exit;
+}
 ?>
 
 <!DOCTYPE html>
@@ -21,9 +27,9 @@ if (isset($_SESSION['user_nik'])) {
     <!-- Google Font: Source Sans Pro -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="../adminlte/plugins/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="<?php echo Router::url('adminlte/plugins/fontawesome-free/css/all.min.css'); ?>">
     <!-- Theme style -->
-    <link rel="stylesheet" href="../adminlte/dist/css/adminlte.min.css">
+    <link rel="stylesheet" href="<?php echo Router::url('adminlte/dist/css/adminlte.min.css'); ?>">
 
     <style>
         .login-page {
@@ -37,6 +43,25 @@ if (isset($_SESSION['user_nik'])) {
         .login-logo img {
             max-width: 200px;
             height: auto;
+        }
+        /* Add some additional styling for better appearance */
+        .login-card-body {
+            border-radius: 5px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0069d9;
+            border-color: #0062cc;
+        }
+        .input-group-text {
+            background-color: transparent;
+        }
+        .alert {
+            margin-bottom: 1rem;
+            border: none;
         }
     </style>
 </head>
@@ -58,7 +83,7 @@ if (isset($_SESSION['user_nik'])) {
                     </div>
                 <?php endif; ?>
 
-                <form action="../controller/c_login.php" method="post">
+                <form action="<?php echo Router::url('auth/login'); ?>" method="post">
                     <div class="input-group mb-3">
                         <input type="text" class="form-control" name="nik" placeholder="NIK" required>
                         <div class="input-group-append">
