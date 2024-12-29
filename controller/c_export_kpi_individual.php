@@ -18,7 +18,7 @@ try {
         throw new Exception('Project parameter is required');
     }
 
-    $project = $_GET['project'];
+    $project = $_GET['project']; // Already contains 'kpi_' prefix
     $metrics = isset($_GET['kpi']) ? json_decode($_GET['kpi'], true) : [];
     $queues = isset($_GET['queue']) ? json_decode($_GET['queue'], true) : [];
     
@@ -26,8 +26,9 @@ try {
     error_log("Metrics: " . print_r($metrics, true));
     error_log("Queues: " . print_r($queues, true));
 
-    // Convert table name to lowercase
-    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project)) . "_individual_mon";
+    // Just append _individual_mon to the existing table name
+    $tableName = $project . "_individual_mon";
+    error_log("Using table name: " . $tableName);
 
     // Create new Spreadsheet object
     $spreadsheet = new Spreadsheet();

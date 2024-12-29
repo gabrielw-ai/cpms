@@ -149,20 +149,50 @@ ob_start();
                             
                             <div class="row">
                                 <div class="col-md-6">
-                                    <!-- Project Selection -->
+                                    <!-- Project Select -->
                                     <div class="form-group">
                                         <label>Project</label>
-                                        <select class="form-control select2bs4" id="project" name="project" required>
-                                            <option value="">-- Select Project --</option>
+                                        <select class="form-control select2" id="project" name="project">
+                                            <option value="">Select Project</option>
                                             <?php
-                                            $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
-                                            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                                echo "<option value='" . htmlspecialchars($row['project_name']) . "'>" . 
-                                                     htmlspecialchars($row['project_name']) . "</option>";
+                                            try {
+                                                $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
+                                                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                                    $projectName = strtolower($row['project_name']);
+                                                    $tableName = 'kpi_' . preg_replace('/[^a-z0-9_]/', '_', $projectName);
+                                                    
+                                                    echo "<option value='" . htmlspecialchars($tableName) . "'>" . 
+                                                         htmlspecialchars($row['project_name']) . "</option>";
+                                                }
+                                            } catch (PDOException $e) {
+                                                echo "<option value=''>Error loading projects</option>";
                                             }
                                             ?>
                                         </select>
                                     </div>
+
+                                    <!-- Initialize Select2 in JavaScript -->
+                                    <script>
+                                    $(document).ready(function() {
+                                        // Initialize Select2
+                                        $("#project").select2({
+                                            theme: "bootstrap4",
+                                            width: "100%",
+                                            placeholder: "Select a project",
+                                            allowClear: true
+                                        });
+
+                                        // Project change handler
+                                        $("#project").on("change", function() {
+                                            const selectedProject = $(this).val();
+                                            console.log('Selected project:', selectedProject);
+                                            
+                                            if (selectedProject) {
+                                                // Your existing code...
+                                            }
+                                        });
+                                    });
+                                    </script>
 
                                     <!-- Name -->
                                     <div class="form-group">

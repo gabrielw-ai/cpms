@@ -1,12 +1,11 @@
 <?php
-// Keep this file as is since it's widely used
-$host = 'localhost';
-$username = 'ubuntu';
-$password = 'CTgb.EIHA7Sh8]Bc';
-$database = 'ubuntu';
+require_once __DIR__ . '/../site_config.php';
+
+// Create global connection variable
+global $conn;
 
 try {
-    $conn = new PDO("mysql:host=$host;dbname=$database", $username, $password);
+    $conn = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
     // Set the PDO error mode to exception
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     // Set charset to utf8mb4

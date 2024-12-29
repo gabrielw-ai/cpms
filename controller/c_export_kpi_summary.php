@@ -11,8 +11,10 @@ try {
     }
 
     $project = $_GET['project'];
-    // Convert table name to lowercase
-    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project));
+    // Project name already contains 'kpi_' prefix, no need to add it again
+    $tableName = $project . "_individual_mon";
+    
+    error_log("Exporting data from table: " . $tableName);
 
     // Create new Spreadsheet object
     $spreadsheet = new Spreadsheet();
@@ -68,8 +70,9 @@ try {
         $sheet->getColumnDimension($col)->setAutoSize(true);
     }
 
-    // Set the filename - keep filename as is for readability
-    $filename = "kpi_summary_{$project}_" . date('Y-m-d') . ".xlsx";
+    // Set the filename - remove 'kpi_' from project name if it exists
+    $projectName = str_replace('kpi_', '', $project);
+    $filename = "kpi_summary_{$projectName}_" . date('Y-m-d') . ".xlsx";
 
     // Redirect output to a client's web browser
     header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

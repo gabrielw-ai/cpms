@@ -7,6 +7,11 @@ require_once dirname(__DIR__) . '/routing.php';
 global $conn;
 $router = new Router();
 
+// Add this function at the top of the file, after the require statements
+function generateTableName($projectName) {
+    return 'kpi_' . strtolower(preg_replace('/[^a-z0-9_]/', '_', $projectName));
+}
+
 // Add required CSS
 $additional_css = '
 <link rel="stylesheet" href="../adminlte/plugins/select2/css/select2.min.css">
@@ -150,7 +155,11 @@ EOT;
                         try {
                             $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
                             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                echo "<option value='" . htmlspecialchars($row['project_name']) . "'>" . 
+                                // Store raw project name in lowercase
+                                $projectName = strtolower($row['project_name']);
+                                $tableName = 'kpi_' . preg_replace('/[^a-z0-9_]/', '_', $projectName);
+                                
+                                echo "<option value='" . htmlspecialchars($tableName) . "'>" . 
                                      htmlspecialchars($row['project_name']) . "</option>";
                             }
                         } catch (PDOException $e) {

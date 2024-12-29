@@ -1,7 +1,7 @@
 // Declare table as a global variable
 let table;
 
-document.addEventListener('DOMContentLoaded', function() {
+$(document).ready(function() {
     // Initialize DataTable
     table = $('#rulesTable').DataTable({
         "responsive": false,
@@ -34,8 +34,6 @@ document.addEventListener('DOMContentLoaded', function() {
             { "data": "end_date" },
             { 
                 "data": "status",
-                "width": "80px",
-                "className": "text-center",
                 "render": function(data) {
                     return '<span class="badge badge-' + 
                         (data === 'active' ? 'success' : 'danger') + 
@@ -44,9 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             { 
                 "data": "supporting_doc_url",
-                "width": "60px",
-                "className": "text-center",
-                "render": function(data, type, row) {
+                "render": function(data) {
                     if (data) {
                         return '<a href="' + baseUrl + data + '" class="btn btn-xs btn-info">View</a>';
                     }
@@ -55,14 +51,14 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             { 
                 "data": null,
-                "width": "100px",
-                "className": "text-center",
-                "orderable": false,
                 "render": function(data, type, row) {
                     return '<div class="btn-group">' +
-                           '<button type="button" class="btn btn-primary btn-sm edit-rule" data-id="' + row.id + '">' +
+                           '<button type="button" class="btn btn-primary btn-sm edit-rule" ' +
+                           'data-id="' + row.id + '">' +
                            '<i class="fas fa-edit"></i></button>' +
-                           '<button type="button" class="btn btn-danger btn-sm" onclick="deleteRule(' + row.id + ')">' +
+                           '<button type="button" class="btn btn-danger btn-sm delete-ccs-rule" ' +
+                           'data-id="' + row.id + '" ' +
+                           'data-project="' + row.project + '">' +
                            '<i class="fas fa-trash"></i></button>' +
                            '</div>';
                 }
@@ -102,10 +98,11 @@ document.addEventListener('DOMContentLoaded', function() {
     );
 
     // Initialize Select2 for filters
-    $('.select2').select2({
+    $('.select2-filter').select2({
         theme: 'bootstrap4',
         width: '100%',
-        allowClear: true
+        allowClear: true,
+        dropdownParent: $('.filter-section')
     });
 
     // Handle filter changes
@@ -113,105 +110,156 @@ document.addEventListener('DOMContentLoaded', function() {
         table.draw();
     });
 
-    // Clear filters
+    // Clear filters button
     $('#clearFilters').on('click', function() {
-        $('#projectFilter, #roleFilter, #statusFilter').val(null).trigger('change');
+        $('.select2-filter').val(null).trigger('change');
         table.draw();
     });
 
-    // Add this to handle table redraw on sidebar toggle
+    // Handle table redraw on sidebar toggle
     $('[data-widget="pushmenu"]').on('click', function() {
         setTimeout(function() {
             table.columns.adjust().draw();
         }, 300);
     });
 
-    // Your existing filter functionality
-    $('#projectFilter, #roleFilter, #statusFilter').on('change', function() {
-        table.draw();
-    });
-
-    // Clear filters
-    $('#clearFilters').on('click', function() {
-        $('.select2').val('').trigger('change');
-        table.search('').columns().search('').draw();
-    });
-
-    // Add this to your document ready function
+    // Edit form submission
     $('#editRuleForm').on('submit', function(e) {
         e.preventDefault();
         
-        var formData = new FormData(this);
+        // Create a regular object with form data
+        var formData = {
+            action: 'edit',
+            id: $('#edit_id').val(),
+            project: $('#edit_project').val(),
+            case_chronology: $('#edit_case_chronology').val(),
+            consequences: $('#edit_consequences').val(),
+            effective_date: $('#edit_effective_date').val(),
+            end_date: $('#edit_end_date').val()
+        };
+
+        // Handle file upload if present
+        var fileInput = $('#edit_supporting_doc')[0];
+        if (fileInput && fileInput.files.length > 0) {
+            formData.supporting_doc = fileInput.files[0];
+        }
         
+        console.log('Sending update data:', formData);
+
         $.ajax({
-            url: baseUrl + 'controller/c_viewer_update.php',
+            url: baseUrl + 'ccs/update',
             type: 'POST',
             data: formData,
-            processData: false,
-            contentType: false,
             success: function(response) {
+                console.log('Update response:', response);
                 if (response.success) {
                     $('#editRuleModal').modal('hide');
                     table.ajax.reload();
                     showAlert('success', response.message);
                 } else {
-                    showAlert('error', response.message);
+                    showAlert('error', response.message || 'Failed to update rule');
                 }
             },
             error: function(xhr, status, error) {
+                console.error('Update error:', error);
                 showAlert('error', 'Error updating rule: ' + error);
             }
         });
     });
 
-    // Add this event handler inside your DOMContentLoaded
+    // Edit button handler
     $(document).on('click', '.edit-rule', function() {
         var id = $(this).data('id');
         editRule(id);
     });
 
-    // Add file input handler for showing selected filename
+    // File input handler
     $(document).on('change', '.custom-file-input', function() {
         var fileName = $(this).val().split('\\').pop();
         $(this).next('.custom-file-label').html(fileName || 'Choose file');
     });
 
-    // Initialize Select2 Elements
-    $('.select2').select2({
-        theme: 'bootstrap4',
-        width: '100%'
-    });
-
-    // Initialize the modal's Select2
+    // Modal Select2 initialization
     $('#editRuleModal').on('shown.bs.modal', function() {
-        $('#edit_consequences').select2('destroy').select2({
+        $('#edit_consequences').select2({
             theme: 'bootstrap4',
             width: '100%',
             dropdownParent: $('#editRuleModal'),
-            minimumResultsForSearch: Infinity // Disable search
+            minimumResultsForSearch: Infinity,
+            dropdownPosition: 'below',
+            dropdownAutoWidth: true,
+            dropdownCssClass: 'select2-dropdown-below'
         });
     });
 
-    // Add input group focus handling
-    $('.input-group .form-control').on('focus blur', function(e) {
-        $(this).parent('.input-group').toggleClass('focused', e.type === 'focus');
+    // Modal Select2 cleanup
+    $('#editRuleModal').on('hide.bs.modal', function() {
+        $('#edit_consequences').select2('destroy');
+    });
+
+    // Delete button handler
+    $(document).on('click', '.delete-ccs-rule', function(e) {
+        e.preventDefault();
+        var id = $(this).data('id');
+        var project = $(this).data('project');
+        
+        console.log('Delete clicked - ID:', id, 'Project:', project);
+        var deleteUrl = baseUrl + 'ccs/delete';
+        console.log('Delete URL:', deleteUrl);
+        
+        if (confirm('Are you sure you want to delete this rule?')) {
+            $.ajax({
+                url: deleteUrl,
+                type: 'POST',
+                data: { 
+                    action: 'delete',
+                    id: id,
+                    project: project
+                },
+                beforeSend: function(xhr) {
+                    console.log('Sending delete request to:', deleteUrl);
+                },
+                success: function(response) {
+                    console.log('Delete response:', response);
+                    if (response.success) {
+                        table.ajax.reload();
+                        showAlert('success', response.message);
+                    } else {
+                        showAlert('error', response.message || 'Failed to delete rule');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Delete error:', {
+                        url: deleteUrl,
+                        status: status,
+                        error: error,
+                        response: xhr.responseText
+                    });
+                    showAlert('error', 'Error deleting rule: ' + error);
+                }
+            });
+        }
     });
 });
 
-// Functions outside DOMContentLoaded
+// Functions outside document.ready
 function editRule(id) {
     var row = table.rows().data().toArray().find(r => r.id == id);
     
     if (row) {
+        console.log('Editing row:', row); // Debug log
+        
         $('#editRuleModal').modal('show');
         
         // Set values
         $('#edit_id').val(row.id);
+        $('#edit_project').val(row.project);
         $('#edit_nik').val(row.nik);
         $('#edit_name').val(row.name);
         $('#edit_role').val(row.role);
         $('#edit_case_chronology').val(row.case_chronology);
         $('#edit_effective_date').val(row.effective_date);
+        $('#edit_end_date').val(row.end_date);
         
         // Set consequences value and trigger end date calculation
         setTimeout(function() {
@@ -219,27 +267,6 @@ function editRule(id) {
         }, 100);
     } else {
         showAlert('error', 'Could not find rule data');
-    }
-}
-
-function deleteRule(id) {
-    if (confirm('Are you sure you want to delete this rule?')) {
-        $.ajax({
-            url: baseUrl + 'controller/c_viewer_del.php',
-            type: 'POST',
-            data: { id: id },
-            success: function(response) {
-                if (response.success) {
-                    table.ajax.reload();
-                    showAlert('success', response.message);
-                } else {
-                    showAlert('error', response.message);
-                }
-            },
-            error: function(xhr, status, error) {
-                showAlert('error', 'Error deleting rule: ' + error);
-            }
-        });
     }
 }
 

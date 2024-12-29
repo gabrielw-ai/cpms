@@ -447,6 +447,177 @@ $additional_css = '
         text-align: center !important;
         width: 100% !important;
     }
+
+    /* Filter section */
+    .filter-section {
+        position: relative;
+        z-index: 1;
+    }
+
+    /* Modal styles */
+    .modal-backdrop {
+        z-index: 1040;
+    }
+
+    .modal {
+        z-index: 1045;
+    }
+
+    /* Select2 styles */
+    .select2-container {
+        z-index: 1;  /* Default z-index for filters */
+    }
+
+    /* Select2 in modal should be above modal */
+    .modal .select2-container {
+        z-index: 1055 !important;
+    }
+
+    /* Select2 dropdown when in modal */
+    .select2-dropdown {
+        z-index: 1056 !important;
+    }
+
+    /* Ensure modal content is above Select2 dropdowns */
+    .modal-content {
+        position: relative;
+        z-index: 1046;
+    }
+
+    /* Filter section Select2 */
+    .card .select2-container {
+        width: 100% !important;
+    }
+
+    /* Remove Select2 clear button (x) */
+    .select2-container--bootstrap4 .select2-selection__clear {
+        display: none !important;
+    }
+
+    /* Or if you want to style it instead of hiding it */
+    /*
+    .select2-container--bootstrap4 .select2-selection__clear {
+        margin-right: 10px;
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+    .select2-container--bootstrap4 .select2-selection__clear:hover {
+        color: #dc3545;
+    }
+    */
+
+    /* Ensure proper alignment of text */
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        padding-right: 10px !important;
+    }
+
+    /* Remove select arrow and make styling consistent */
+    select.form-control {
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background-image: none !important;
+        padding-right: 12px !important;
+    }
+
+    /* Remove default arrow in IE */
+    select.form-control::-ms-expand {
+        display: none;
+    }
+
+    /* Make select2 match other form controls */
+    .select2-container--bootstrap4 .select2-selection {
+        height: calc(2.25rem + 2px) !important;
+        padding: .375rem .75rem !important;
+        font-size: 1rem !important;
+        line-height: 1.5 !important;
+        border: 1px solid #ced4da !important;
+        border-radius: .25rem !important;
+    }
+
+    /* Remove select2 dropdown arrow */
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+        display: none !important;
+    }
+
+    /* Fix select2 positioning and spacing */
+    .select2-container {
+        width: 100% !important;
+        margin: 0;
+    }
+
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+        padding: 8px 12px !important;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        padding: 0 !important;
+        line-height: 1.5 !important;
+        color: #495057;
+    }
+
+    /* Remove extra spacing */
+    .select2-container--bootstrap4 {
+        margin: 0 !important;
+    }
+
+    /* Ensure placeholder text aligns with other inputs */
+    .select2-container--bootstrap4 .select2-selection--single .select2-selection__placeholder {
+        color: #6c757d;
+        line-height: 1.5;
+    }
+
+    /* Modal Select2 styles */
+    #editRuleModal .select2-container {
+        width: 100% !important;
+    }
+
+    #editRuleModal .select2-container--bootstrap4 .select2-selection {
+        height: 38px !important;
+    }
+
+    #editRuleModal .select2-container--bootstrap4 .select2-selection--single {
+        padding: 8px 12px !important;
+    }
+
+    #editRuleModal .select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+        padding: 0 !important;
+        line-height: 1.5 !important;
+    }
+
+    /* Ensure dropdown appears below in modal */
+    .select2-container--bootstrap4.select2-container--open .select2-dropdown {
+        margin-top: 0 !important;
+        border-top: 1px solid #ced4da !important;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option {
+        padding: 8px 12px !important;
+    }
+
+    .select2-container--bootstrap4 .select2-results__option--highlighted[aria-selected] {
+        background-color: #007bff !important;
+    }
+
+    /* Center the filter labels only */
+    .filter-section .form-group label {
+        text-align: center !important;
+        width: 100%;
+    }
+
+    /* Modal form labels - align left */
+    #editRuleModal .form-group label {
+        text-align: left !important;
+        width: 100%;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Keep filter labels centered but modal labels left-aligned */
+    .card-body .form-group label:not(#editRuleModal .form-group label) {
+        text-align: center !important;
+    }
 </style>';
 
 // Add DataTables and AdminLTE JS
@@ -508,61 +679,61 @@ $additional_js .= '
                             <div class="col-12">
                                 <div class="card">
                                     <div class="card-body p-3">
-            <div class="row">
+            <div class="row filter-section">
                 <!-- Project Filter -->
-                                            <div class="col-md-3">
-                                                <div class="form-group mb-0">
-                                                    <label class="mb-2">Project</label>
-                                                    <select class="form-control select2" id="projectFilter" style="width: 100%;">
-                                                        <option value="">All Projects</option>
-                        <?php
-                                                        $stmt = $conn->query("SELECT DISTINCT project FROM ccs_rules WHERE project IS NOT NULL ORDER BY project");
-                        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                                            if (!empty($row['project'])) {
-                            echo "<option value='" . htmlspecialchars($row['project']) . "'>" . 
-                                 htmlspecialchars($row['project']) . "</option>";
-                                                            }
-                        }
-                        ?>
-                    </select>
-                                                </div>
+                <div class="col-md-3">
+                    <div class="form-group mb-0">
+                        <label class="mb-2">Project</label>
+                        <select class="form-control select2-filter" id="projectFilter">
+                            <option value="">All Projects</option>
+                            <?php
+                            $stmt = $conn->query("SELECT DISTINCT project FROM ccs_rules WHERE project IS NOT NULL ORDER BY project");
+                            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                if (!empty($row['project'])) {
+                                    echo "<option value='" . htmlspecialchars($row['project']) . "'>" . 
+                                         htmlspecialchars($row['project']) . "</option>";
+                                }
+                            }
+                            ?>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Role Filter -->
-                                            <div class="col-md-3">
-                                                <div class="form-group mb-0">
-                                                    <label class="mb-2">Role</label>
-                                                    <select class="form-control select2" id="roleFilter" style="width: 100%;">
-                                                        <option value="">All Roles</option>
-                        <?php
-                                                        $stmt = $conn->query("SELECT DISTINCT role FROM ccs_rules WHERE role IS NOT NULL ORDER BY role");
-                        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                                                            if (!empty($row['role'])) {
-                            echo "<option value='" . htmlspecialchars($row['role']) . "'>" . 
-                                 htmlspecialchars($row['role']) . "</option>";
-                                                            }
-                        }
-                        ?>
-                    </select>
-                </div>
+                <div class="col-md-3">
+                    <div class="form-group mb-0">
+                        <label class="mb-2">Role</label>
+                        <select class="form-control select2-filter" id="roleFilter">
+                            <option value="">All Roles</option>
+                            <?php
+                            $stmt = $conn->query("SELECT DISTINCT role FROM ccs_rules WHERE role IS NOT NULL ORDER BY role");
+                            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                                if (!empty($row['role'])) {
+                                    echo "<option value='" . htmlspecialchars($row['role']) . "'>" . 
+                                         htmlspecialchars($row['role']) . "</option>";
+                                }
+                            }
+                            ?>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Status Filter -->
-                                            <div class="col-md-3">
-                                                <div class="form-group mb-0">
-                                                    <label class="mb-2">Status</label>
-                                                    <select class="form-control select2" id="statusFilter" style="width: 100%;">
-                                                        <option value="">All Status</option>
-                        <option value="active">Active</option>
-                                                        <option value="expired">Expired</option>
-                    </select>
+                <div class="col-md-3">
+                    <div class="form-group mb-0">
+                        <label class="mb-2">Status</label>
+                        <select class="form-control select2-filter" id="statusFilter">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Clear Filters Button -->
-                                            <div class="col-md-3 d-flex align-items-end">
-                                                <button type="button" class="btn btn-secondary w-100" id="clearFilters" style="height: 38px;">
-                                                    Clear Filters
+                <!-- Clear Filters Button -->
+                <div class="col-md-3 d-flex align-items-end">
+                    <button type="button" class="btn btn-secondary w-100" id="clearFilters" style="height: 38px;">
+                        Clear Filters
                     </button>
                 </div>
             </div>
@@ -577,7 +748,7 @@ $additional_js .= '
                 <thead>
                     <tr>
                         <th>Project</th>
-                        <th>nik</th>
+                        <th>NIK</th>
                         <th>Name</th>
                         <th>Role</th>
                         <th>Tenure</th>
@@ -585,9 +756,9 @@ $additional_js .= '
                         <th>Consequences</th>
                         <th>Effective Date</th>
                         <th>End Date</th>
-                                        <th style="width: 80px;">Status</th>
-                                        <th style="width: 100px;">Doc</th>
-                                        <th style="width: 100px;">Actions</th>
+                        <th style="width: 80px;">Status</th>
+                        <th style="width: 100px;">Doc</th>
+                        <th style="width: 100px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -613,10 +784,11 @@ $additional_js .= '
             <form id="editRuleForm">
                 <div class="modal-body">
                     <input type="hidden" id="edit_id" name="id">
+                    <input type="hidden" id="edit_project" name="project">
                     
                     <!-- Display only fields -->
                     <div class="form-group">
-                        <label>nik</label>
+                        <label>NIK</label>
                         <input type="text" class="form-control" id="edit_nik" readonly>
                     </div>
                     <div class="form-group">

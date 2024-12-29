@@ -1,22 +1,27 @@
 <?php
-// Development environment
-if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.1') {
-    // Site Configuration
-    define('SITE_DOMAIN', 'localhost');
-    define('SITE_SUBDIR', 'cpms');
-}
-// Staging environment
-elseif ($_SERVER['HTTP_HOST'] === 'staging.yourdomain.com') {
-    // Site Configuration
-    define('SITE_DOMAIN', 'staging.yourdomain.com');
-    define('SITE_SUBDIR', 'cpms');
-}
-// Production environment
-else {
-    // Site Configuration
-    define('SITE_DOMAIN', 'yourdomain.com');
-    define('SITE_SUBDIR', 'cpms');
-}
+// Site configuration
+define('SITE_URL', 'http://localhost'); // Change this to your domain
 
-// Optional: Define other environment-specific constants
-define('ENVIRONMENT', $_SERVER['HTTP_HOST'] === 'localhost' ? 'development' : 'production'); 
+// Set the application subdirectory - change this value to modify the base path
+$app_subdir = 'cpms';
+define('BASE_PATH', '/' . trim($app_subdir, '/'));
+define('APP_NAME', 'CPMS');
+
+// Database configuration - these will be used by conn.php
+define('DB_HOST', 'localhost');
+define('DB_NAME', '');
+define('DB_USER', '');
+define('DB_PASS', '');
+
+// Security settings
+define('SESSION_LIFETIME', 3600); // 1 hour
+define('CSRF_TOKEN_NAME', 'csrf_token');
+
+// Error reporting
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/logs/error.log');
+
+// Time zone
+date_default_timezone_set('Asia/Jakarta'); 

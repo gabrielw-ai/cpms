@@ -56,13 +56,16 @@ try {
                     $end_date->modify('+6 months -1 day');
                 }
 
+                // Strip 'kpi_' prefix from project name for database storage
+                $projectName = preg_replace('/^kpi_/', '', $_POST['project']);
+                
                 // Insert new rule
                 $stmt = $conn->prepare("INSERT INTO ccs_rules (project, nik, name, role, tenure, case_chronology, 
                                       consequences, effective_date, end_date, supporting_doc_url, status) 
                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
                 
                 if ($stmt->execute([
-                    $_POST['project'],
+                    $projectName,  // Store without 'kpi_' prefix
                     $_POST['nik'],
                     $_POST['name'],
                     $_POST['role'],
@@ -97,83 +100,156 @@ try {
                     }
                 }
 
-                $id = $_POST['id'];
-                $project = $_POST['project'];
-                $case_chronology = $_POST['case_chronology'];
-                $consequences = $_POST['consequences'];
-                $effective_date = $_POST['effective_date'];
-                $end_date = $_POST['end_date'];
+                try {
+                    // Begin transaction
+                    $conn->beginTransaction();
 
-                // Handle file upload if present
-                $document_path = null;
-                if (isset($_FILES['document']) && $_FILES['document']['error'] === UPLOAD_ERR_OK) {
-                    $upload_dir = dirname(__DIR__) . '/uploads/ccs_docs/';
-                    if (!file_exists($upload_dir)) {
-                        mkdir($upload_dir, 0777, true);
+                    // Get the data
+                    $id = $_POST['id'];
+                    $project = $_POST['project'];
+                    $case_chronology = $_POST['case_chronology'];
+                    $consequences = $_POST['consequences'];
+                    $effective_date = $_POST['effective_date'];
+                    $end_date = $_POST['end_date'];
+
+                    // Handle file upload if present
+                    $document_path = null;
+                    if (isset($_FILES['supporting_doc']) && $_FILES['supporting_doc']['error'] === UPLOAD_ERR_OK) {
+                        $upload_dir = dirname(__DIR__) . '/uploads/ccs_docs/';
+                        if (!file_exists($upload_dir)) {
+                            mkdir($upload_dir, 0777, true);
+                        }
+
+                        $file_extension = strtolower(pathinfo($_FILES['supporting_doc']['name'], PATHINFO_EXTENSION));
+                        $new_filename = uniqid('doc_') . '.' . $file_extension;
+                        $document_path = 'uploads/ccs_docs/' . $new_filename;
+
+                        if (!move_uploaded_file($_FILES['supporting_doc']['tmp_name'], $upload_dir . $new_filename)) {
+                            throw new Exception("Error uploading file");
+                        }
                     }
 
-                    $file_extension = strtolower(pathinfo($_FILES['document']['name'], PATHINFO_EXTENSION));
-                    $new_filename = uniqid('doc_') . '.' . $file_extension;
-                    $document_path = 'uploads/ccs_docs/' . $new_filename;
-
-                    if (move_uploaded_file($_FILES['document']['tmp_name'], $upload_dir . $new_filename)) {
-                        // File uploaded successfully
-                    } else {
-                        throw new Exception("Error uploading file");
-                    }
-                    }
-
-                // Prepare the SQL query
+                    // Prepare the SQL query
                     $sql = "UPDATE ccs_rules SET 
-                            project = :project,
                             case_chronology = :case_chronology,
                             consequences = :consequences,
                             effective_date = :effective_date,
-                        end_date = :end_date";
+                            end_date = :end_date";
 
-                if ($document_path !== null) {
-                    $sql .= ", supporting_doc_url = :document_path";
-                }
+                    if ($document_path !== null) {
+                        $sql .= ", supporting_doc_url = :document_path";
+                    }
 
-                $sql .= " WHERE id = :id";
+                    $sql .= " WHERE id = :id AND project = :project";
 
-                $stmt = $conn->prepare($sql);
+                    $stmt = $conn->prepare($sql);
                     $params = [
-                    ':id' => $id,
-                    ':project' => $project,
-                    ':case_chronology' => $case_chronology,
-                    ':consequences' => $consequences,
-                    ':effective_date' => $effective_date,
-                    ':end_date' => $end_date
-                ];
+                        ':id' => $id,
+                        ':project' => $project,
+                        ':case_chronology' => $case_chronology,
+                        ':consequences' => $consequences,
+                        ':effective_date' => $effective_date,
+                        ':end_date' => $end_date
+                    ];
 
-                if ($document_path !== null) {
-                    $params[':document_path'] = $document_path;
-                }
+                    if ($document_path !== null) {
+                        $params[':document_path'] = $document_path;
+                    }
 
-                if ($stmt->execute($params)) {
+                    // Execute update
+                    $stmt->execute($params);
+                    
+                    // Commit transaction
+                    $conn->commit();
+
+                    // Clean output buffer and set headers
+                    ob_clean();
+                    header('Content-Type: application/json');
+                    
                     echo json_encode([
                         'success' => true,
                         'message' => 'Rule updated successfully'
                     ]);
-                } else {
-                    throw new Exception("Error updating record");
+                    exit;
+
+                } catch (Exception $e) {
+                    // Rollback transaction on error
+                    $conn->rollBack();
+                    
+                    // Clean output buffer and set headers
+                    ob_clean();
+                    header('Content-Type: application/json');
+                    
+                    echo json_encode([
+                        'success' => false,
+                        'message' => "Error updating rule: " . $e->getMessage()
+                    ]);
+                    exit;
                 }
-                    break;
+                break;
 
             case 'delete':
-                if (!isset($_POST['id'])) {
+                error_log("Delete request received: " . print_r($_POST, true));
+                
+                // Validate required fields
+                if (!isset($_POST['id']) || empty($_POST['id'])) {
+                    error_log("Missing ID parameter");
                     throw new Exception("Missing rule ID");
                 }
+                if (!isset($_POST['project']) || empty($_POST['project'])) {
+                    error_log("Missing project parameter");
+                    throw new Exception("Missing project parameter");
+                }
 
-                $stmt = $conn->prepare("DELETE FROM ccs_rules WHERE id = ?");
-                if ($stmt->execute([$_POST['id']])) {
+                try {
+                    // Begin transaction
+                    $conn->beginTransaction();
+                    error_log("Starting delete transaction for ID: {$_POST['id']}, Project: {$_POST['project']}");
+                    
+                    // First check if rule exists
+                    $checkStmt = $conn->prepare("SELECT * FROM ccs_rules WHERE id = ? AND project = ?");
+                    $checkStmt->execute([$_POST['id'], $_POST['project']]);
+                    $rule = $checkStmt->fetch();
+
+                    if (!$rule) {
+                        throw new Exception("Rule not found");
+                    }
+
+                    // Delete supporting document if exists
+                    if (!empty($rule['supporting_doc_url'])) {
+                        $docPath = dirname(__DIR__) . '/' . $rule['supporting_doc_url'];
+                        if (file_exists($docPath)) {
+                            unlink($docPath);
+                        }
+                    }
+
+                    // Delete the rule
+                    $deleteStmt = $conn->prepare("DELETE FROM ccs_rules WHERE id = ? AND project = ?");
+                    $deleteStmt->execute([$_POST['id'], $_POST['project']]);
+
+                    // Commit transaction
+                    $conn->commit();
+
+                    // Make sure there's no whitespace or output before this
+                    ob_clean();
+                    header('Content-Type: application/json');
                     echo json_encode([
                         'success' => true,
                         'message' => 'Rule deleted successfully'
                     ]);
-                } else {
-                    throw new Exception("Error deleting record");
+                    exit;
+                } catch (Exception $e) {
+                    // Rollback transaction on error
+                    $conn->rollBack();
+                    
+                    // Make sure there's no whitespace or output before this
+                    ob_clean();
+                    header('Content-Type: application/json');
+                    echo json_encode([
+                        'success' => false,
+                        'message' => "Error deleting rule: " . $e->getMessage()
+                    ]);
+                    exit;
                 }
                 break;
 

@@ -1,31 +1,31 @@
 <?php
-require_once 'conn.php';
+require_once dirname(__DIR__) . '/controller/conn.php';
+global $conn;
 
-header('Content-Type: application/json');
+// Debug logging
+error_log("=== KPI Metrics Request ===");
+error_log("Raw project parameter: " . print_r($_GET, true));
 
-if (isset($_GET['table'])) {
+if (isset($_GET['project'])) {
+    // Don't modify the project name if it's already formatted
+    $tableName = strtolower($_GET['project']); // Force everything to lowercase
+    error_log("Final table name to query: " . $tableName);
+    
     try {
-        // Add error logging
-        error_log("Fetching KPI metrics for table: " . $_GET['table']);
+        // Log the query we're about to execute
+        $query = "SELECT DISTINCT kpi_metrics FROM $tableName ORDER BY kpi_metrics";
+        error_log("Executing query: " . $query);
         
-        $tableName = strtolower($_GET['table']);
-        $sql = "SELECT DISTINCT kpi_metrics FROM `$tableName` ORDER BY kpi_metrics";
-        
-        error_log("SQL Query: " . $sql);
-        
-        $stmt = $conn->query($sql);
+        $stmt = $conn->prepare($query);
+        $stmt->execute();
         $metrics = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        
-        error_log("Found metrics: " . print_r($metrics, true));
-        
-        echo json_encode($metrics);
+        echo json_encode(['success' => true, 'data' => $metrics]);
     } catch (PDOException $e) {
-        error_log("Error in get_kpi_metrics.php: " . $e->getMessage());
-        http_response_code(500);
-        echo json_encode(['error' => $e->getMessage()]);
+        error_log("Database error: " . $e->getMessage());
+        echo json_encode(['success' => false, 'error' => 'Error fetching metrics']);
     }
 } else {
-    http_response_code(400);
-    echo json_encode(['error' => 'Table parameter is required']);
+    error_log("No project parameter received");
+    echo json_encode(['success' => false, 'error' => 'Project not specified']);
 }
 ?> 

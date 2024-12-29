@@ -32,8 +32,11 @@ try {
     $project = $_GET['project'];
     $currentUserNIK = $_SESSION['user_nik'] ?? '';
     
-    error_log("Project requested: " . $project);
-    error_log("Current user NIK: " . $currentUserNIK);
+    // Just strip 'kpi_' prefix - keep the underscores
+    $projectName = substr($project, 4); // Remove 'kpi_' prefix
+    
+    error_log("Original project parameter: " . $project);
+    error_log("Converted project name: " . $projectName);
 
     // Query excluding the current user's NIK
     $sql = "SELECT nik, employee_name 
@@ -43,13 +46,13 @@ try {
             ORDER BY employee_name";
 
     $stmt = $conn->prepare($sql);
-    $stmt->bindParam(':project', $project);
+    $stmt->bindParam(':project', $projectName);
     $stmt->bindParam(':current_user', $currentUserNIK);
     
     $stmt->execute();
     $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    error_log("Found employees: " . print_r($employees, true));
+    error_log("Found " . count($employees) . " employees for project: " . $projectName);
 
     echo json_encode([
         'success' => true,

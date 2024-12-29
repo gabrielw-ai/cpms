@@ -30,54 +30,84 @@ try {
     }
 
     $project = $_POST['project'];
-    $nik = $_POST['nik'];
-    $name = $_POST['name'];
+    $nik = trim($_POST['nik']);
+    $name = trim($_POST['name']);
     $kpiMetrics = $_POST['kpi_metrics'];
     $queue = $_POST['queue'];
     $month = strtolower($_POST['month']);
     $value = floatval($_POST['value']);
 
-    // Convert table name to lowercase
-    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project)) . "_individual_mon";
+    // Debug the received data
+    error_log("Received data - NIK: $nik, Name: $name, Project: $project");
 
-    error_log("Adding KPI for Project: $project, NIK: $nik, Month: $month, Value: $value");
+    // Generate table name
+    $tableName = $project . "_individual_mon";
+    error_log("Table name for insert: " . $tableName);
 
     // Check if record exists
     $checkSql = "SELECT id FROM `$tableName` 
-                 WHERE nik = ? 
-                 AND kpi_metrics = ? 
-                 AND queue = ?";
+                 WHERE nik = :nik 
+                 AND kpi_metrics = :metrics 
+                 AND queue = :queue";
     $checkStmt = $conn->prepare($checkSql);
-    $checkStmt->execute([$nik, $kpiMetrics, $queue]);
+    $checkStmt->bindValue(':nik', $nik);
+    $checkStmt->bindValue(':metrics', $kpiMetrics);
+    $checkStmt->bindValue(':queue', $queue);
+    $checkStmt->execute();
     $exists = $checkStmt->fetch();
 
     if ($exists) {
         // Update existing record
         $sql = "UPDATE `$tableName` 
-                SET `$month` = ? 
-                WHERE nik = ? 
-                AND kpi_metrics = ? 
-                AND queue = ?";
+                SET `$month` = :value,
+                    employee_name = :name
+                WHERE nik = :nik 
+                AND kpi_metrics = :metrics 
+                AND queue = :queue";
         $stmt = $conn->prepare($sql);
-        $stmt->execute([$value, $nik, $kpiMetrics, $queue]);
+        $stmt->bindValue(':value', $value);
+        $stmt->bindValue(':name', $name);
+        $stmt->bindValue(':nik', $nik);
+        $stmt->bindValue(':metrics', $kpiMetrics);
+        $stmt->bindValue(':queue', $queue);
+        $stmt->execute();
     } else {
         // Insert new record
         $sql = "INSERT INTO `$tableName` 
                 (nik, employee_name, kpi_metrics, queue, `$month`) 
-                VALUES (?, ?, ?, ?, ?)";
+                VALUES (:nik, :name, :metrics, :queue, :value)";
         $stmt = $conn->prepare($sql);
-        $stmt->execute([$nik, $name, $kpiMetrics, $queue, $value]);
+        $stmt->bindValue(':nik', $nik);
+        $stmt->bindValue(':name', $name);
+        $stmt->bindValue(':metrics', $kpiMetrics);
+        $stmt->bindValue(':queue', $queue);
+        $stmt->bindValue(':value', $value);
+        $stmt->execute();
     }
+
+    // Verify the insert/update
+    $verifySql = "SELECT * FROM `$tableName` 
+                  WHERE nik = :nik 
+                  AND kpi_metrics = :metrics 
+                  AND queue = :queue";
+    $verifyStmt = $conn->prepare($verifySql);
+    $verifyStmt->bindValue(':nik', $nik);
+    $verifyStmt->bindValue(':metrics', $kpiMetrics);
+    $verifyStmt->bindValue(':queue', $queue);
+    $verifyStmt->execute();
+    $result = $verifyStmt->fetch(PDO::FETCH_ASSOC);
+    
+    error_log("Verification result: " . print_r($result, true));
 
     echo json_encode([
         'success' => true,
-        'message' => 'KPI added successfully'
+        'message' => 'KPI added successfully',
+        'data' => $result
     ]);
     exit;
 
 } catch (Exception $e) {
     error_log("Error in c_kpi_individual.php: " . $e->getMessage());
-    http_response_code(500);
     echo json_encode([
         'success' => false,
         'message' => $e->getMessage()

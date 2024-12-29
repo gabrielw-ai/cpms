@@ -22,6 +22,8 @@ return [
     // CCS Rules routes
     'ccs/rules' => 'view/ccs_rules_mgmt.php',
     'ccs/viewer' => 'view/ccs_viewer.php',
+    'ccs/delete' => 'controller/c_ccs_rules.php',
+    'ccs/update' => 'controller/c_ccs_rules.php',
     
     // Project routes
     'projects' => 'view/project_namelist.php',
