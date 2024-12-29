@@ -7,7 +7,7 @@ global $conn;
 // Add this function definition
 function getAllRoles($conn) {
     try {
-        $stmt = $conn->query("SELECT DISTINCT role FROM employee_active ORDER BY role");
+        $stmt = $conn->query("SELECT role FROM role_mgmt WHERE role != 'Super_User' ORDER BY role");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
         return [];
@@ -606,11 +606,8 @@ function deleteEmployee(nik) {
                             <?php
                             $roles = getAllRoles($conn);
                             foreach ($roles as $role) {
-                                // Skip Super_User role
-                                if ($role['role'] !== 'Super_User') {
-                                    echo "<option value='" . htmlspecialchars($role['role']) . "'>" . 
-                                         htmlspecialchars($role['role']) . "</option>";
-                                }
+                                echo "<option value='" . htmlspecialchars($role['role']) . "'>" . 
+                                     htmlspecialchars($role['role']) . "</option>";
                             }
                             ?>
                         </select>
@@ -671,11 +668,8 @@ function deleteEmployee(nik) {
                             <?php
                             $roles = getAllRoles($conn);
                             foreach ($roles as $role) {
-                                // Skip Super_User role
-                                if ($role['role'] !== 'Super_User') {
-                                    echo "<option value='" . htmlspecialchars($role['role']) . "'>" . 
-                                         htmlspecialchars($role['role']) . "</option>";
-                                }
+                                echo "<option value='" . htmlspecialchars($role['role']) . "'>" . 
+                                     htmlspecialchars($role['role']) . "</option>";
                             }
                             ?>
                         </select>

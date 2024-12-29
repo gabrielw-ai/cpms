@@ -199,7 +199,16 @@ function validateEmployeeData($data, $conn, $isUpdate = false) {
     // Rest of validations...
     if (empty($data['name'])) $errors[] = "Name is required";
     if (empty($data['email'])) $errors[] = "Email is required";
-    if (empty($data['role'])) $errors[] = "Role is required";
+    // Validate role exists in role_mgmt
+    if (empty($data['role'])) {
+        $errors[] = "Role is required";
+    } else {
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM role_mgmt WHERE role = ? AND role != 'Super_User'");
+        $stmt->execute([$data['role']]);
+        if ($stmt->fetchColumn() == 0) {
+            $errors[] = "Invalid role selected";
+        }
+    }
     if (empty($data['project'])) $errors[] = "Project is required";
     if (empty($data['join_date'])) $errors[] = "Join date is required";
     
