@@ -61,7 +61,25 @@ try {
     }
 
     // Build query based on filters
-    $sql = "SELECT * FROM `$tableName`";
+    $sql = "SELECT 
+        nik as NIK,
+        employee_name,
+        kpi_metrics,
+        queue,
+        january,
+        february,
+        march,
+        april,
+        may,
+        june,
+        july,
+        august,
+        september,
+        october,
+        november,
+        december
+    FROM `$tableName`";
+
     $params = [];
     
     if (!empty($metrics) && !empty($queues)) {
@@ -71,7 +89,7 @@ try {
         $params = array_merge($metrics, $queues);
     }
     
-    $sql .= " ORDER BY NIK, kpi_metrics, queue";
+    $sql .= " ORDER BY nik, kpi_metrics, queue";
     
     error_log("SQL Query: " . $sql);
     error_log("Parameters: " . print_r($params, true));
@@ -80,10 +98,13 @@ try {
     $stmt->execute($params);
     $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Add this after fetching the data
+    error_log("Fetched data sample: " . print_r($data[0] ?? [], true));
+
     // Write data using column letters
     $row = 2;
     foreach ($data as $record) {
-        $sheet->setCellValue('A' . $row, $record['NIK']);
+        $sheet->setCellValue('A' . $row, $record['NIK'] ?? $record['nik'] ?? '');
         $sheet->setCellValue('B' . $row, $record['employee_name']);
         $sheet->setCellValue('C' . $row, $record['kpi_metrics']);
         $sheet->setCellValue('D' . $row, $record['queue']);

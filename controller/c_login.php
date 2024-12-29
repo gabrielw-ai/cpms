@@ -5,8 +5,21 @@ require_once dirname(__DIR__) . '/routing.php';
 
 try {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $nik = $_POST['nik'];
+        // Sanitize and validate NIK
+        $nik = trim(filter_input(INPUT_POST, 'nik', FILTER_SANITIZE_STRING));
+        if (empty($nik) || !preg_match('/^[0-9]{6,8}$/', $nik)) { // Adjust regex based on your NIK format
+            $_SESSION['error'] = "Invalid NIK format";
+            header('Location: ../view/login.php');
+            exit;
+        }
+
+        // Password length validation
         $password = $_POST['password'];
+        if (strlen($password) < 8) {  // Minimum 8 characters
+            $_SESSION['error'] = "Password must be at least 8 characters";
+            header('Location: ../view/login.php');
+            exit;
+        }
 
         // Query should use lowercase column names
         $sql = "SELECT nik, employee_name, employee_email, role, project, password 

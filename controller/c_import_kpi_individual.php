@@ -5,98 +5,124 @@ global $conn;
 
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
-// Add error logging
-error_reporting(E_ALL);
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
-error_log("Starting c_import_kpi_individual.php");
+// Clean any output buffers
+while (ob_get_level()) {
+    ob_end_clean();
+}
 
-// Clean any output buffer
-ob_clean();
-
-// Ensure clean headers
+// Set JSON headers
 header('Content-Type: application/json');
 header('Cache-Control: no-cache, must-revalidate');
 
 try {
     if (!isset($_FILES['file']) || !isset($_POST['project'])) {
-        throw new Exception('Missing required parameters');
+        throw new Exception('File and project parameters are required');
     }
 
+    $file = $_FILES['file'];
     $project = $_POST['project'];
-    // Convert table name to lowercase
-    $tableName = "kpi_" . strtolower(str_replace(" ", "_", $project)) . "_individual_mon";
-    
-    $inputFileName = $_FILES['file']['tmp_name'];
-    $spreadsheet = IOFactory::load($inputFileName);
+    $tableName = $project . "_individual_mon";
+
+    // Validate file
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        throw new Exception('File upload failed with error code: ' . $file['error']);
+    }
+
+    // Load the Excel file
+    $spreadsheet = IOFactory::load($file['tmp_name']);
     $worksheet = $spreadsheet->getActiveSheet();
     $rows = $worksheet->toArray();
-    
+
     // Remove header row
     array_shift($rows);
-    
+
+    // Begin transaction
     $conn->beginTransaction();
-    $processed = 0;
-    $errors = [];
-    
+
+    // Prepare the INSERT ... ON DUPLICATE KEY UPDATE statement
+    $sql = "INSERT INTO `$tableName` (
+        nik, 
+        employee_name, 
+        kpi_metrics, 
+        queue, 
+        january, 
+        february, 
+        march, 
+        april, 
+        may, 
+        june, 
+        july, 
+        august, 
+        september, 
+        october, 
+        november, 
+        december
+    ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+    ) ON DUPLICATE KEY UPDATE 
+        employee_name = VALUES(employee_name),
+        queue = VALUES(queue),
+        january = VALUES(january),
+        february = VALUES(february),
+        march = VALUES(march),
+        april = VALUES(april),
+        may = VALUES(may),
+        june = VALUES(june),
+        july = VALUES(july),
+        august = VALUES(august),
+        september = VALUES(september),
+        october = VALUES(october),
+        november = VALUES(november),
+        december = VALUES(december)";
+
+    $stmt = $conn->prepare($sql);
+
+    // Process each row
     foreach ($rows as $index => $row) {
+        // Skip empty rows
+        if (empty($row[0])) continue;
+
         try {
-            if (empty($row[0])) continue; // Skip empty rows
-            
-            // Prepare data
-            $data = [
-                'nik' => $row[0],
-                'employee_name' => $row[1],
-                'kpi_metrics' => $row[2],
-                'queue' => $row[3],
-                'january' => $row[4],
-                'february' => $row[5],
-                'march' => $row[6],
-                'april' => $row[7],
-                'may' => $row[8],
-                'june' => $row[9],
-                'july' => $row[10],
-                'august' => $row[11],
-                'september' => $row[12],
-                'october' => $row[13],
-                'november' => $row[14],
-                'december' => $row[15]
-            ];
-            
-            // Build columns and values for SQL
-            $columns = array_keys($data);
-            $values = array_values($data);
-                
-            $sql = "INSERT INTO `$tableName` (" . implode(", ", $columns) . ") 
-                    VALUES (" . str_repeat("?,", count($values)-1) . "?)";
-                
-            $stmt = $conn->prepare($sql);
-            $stmt->execute($values);
-            
-            $processed++;
-            
-        } catch (Exception $e) {
-            $errors[] = "Row " . ($index + 2) . ": " . $e->getMessage();
+            $stmt->execute([
+                $row[0],  // nik
+                $row[1],  // employee_name
+                $row[2],  // kpi_metrics
+                $row[3],  // queue
+                $row[4],  // january
+                $row[5],  // february
+                $row[6],  // march
+                $row[7],  // april
+                $row[8],  // may
+                $row[9],  // june
+                $row[10], // july
+                $row[11], // august
+                $row[12], // september
+                $row[13], // october
+                $row[14], // november
+                $row[15]  // december
+            ]);
+        } catch (PDOException $e) {
+            throw new Exception("Row " . ($index + 2) . ": " . $e->getMessage());
         }
     }
-    
-    if (empty($errors)) {
-        $conn->commit();
-        die(json_encode([
-            'success' => true,
-            'message' => "Successfully processed $processed records"
-        ]));
-    } else {
-        throw new Exception(implode("\n", $errors));
-    }
-    
+
+    // Commit transaction
+    $conn->commit();
+
+    die(json_encode([
+        'success' => true,
+        'message' => 'Data imported successfully'
+    ]));
+
 } catch (Exception $e) {
-    if (isset($conn)) {
+    // Rollback transaction if active
+    if ($conn->inTransaction()) {
         $conn->rollBack();
     }
-    error_log("Import error: " . $e->getMessage());
+
+    error_log("Error importing data: " . $e->getMessage());
     die(json_encode([
         'success' => false,
-        'message' => $e->getMessage()
+        'message' => 'Error importing data: ' . $e->getMessage()
     ]));
 } 

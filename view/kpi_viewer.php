@@ -155,26 +155,35 @@ ob_start();
                         <div class="form-group">
                             <label>Select Project:</label>
                             <select class="form-control select2" name="table" onchange="this.form.submit()">
-                                <option value="">-- Select Project --</option>
-                    <?php
-                    try {
-                        $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
-                        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                            $tableName = 'kpi_' . strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $row['project_name']));
-                            $selected = (isset($_GET['table']) && strtolower($_GET['table']) === $tableName) ? 'selected' : '';
-                            
-                            if ($selected && !isset($_GET['view'])) {
-                                $defaultUrl = "?table=" . urlencode($tableName) . "&view=weekly";
-                                echo "<option value='" . htmlspecialchars($tableName) . "' {$selected} data-default-url='{$defaultUrl}'>";
-                            } else {
-                                echo "<option value='" . htmlspecialchars($tableName) . "' {$selected}>";
-                            }
-                            echo htmlspecialchars($row['project_name']) . "</option>";
-                        }
-                    } catch (PDOException $e) {
-                        echo "<option value=''>Error loading projects</option>";
-                    }
-                    ?>
+                                <?php
+                                try {
+                                    $stmt = $conn->query("SELECT project_name FROM project_namelist ORDER BY project_name");
+                                    $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                    
+                                    // If no project is selected and we have projects, select the first one
+                                    if (!isset($_GET['table']) && !empty($projects)) {
+                                        $firstProject = $projects[0]['project_name'];
+                                        $firstTableName = 'kpi_' . strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $firstProject));
+                                        header("Location: ?table=" . urlencode($firstTableName) . "&view=weekly");
+                                        exit;
+                                    }
+
+                                    foreach ($projects as $project) {
+                                        $tableName = 'kpi_' . strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $project['project_name']));
+                                        $selected = (isset($_GET['table']) && strtolower($_GET['table']) === $tableName) ? 'selected' : '';
+                                        
+                                        if ($selected && !isset($_GET['view'])) {
+                                            $defaultUrl = "?table=" . urlencode($tableName) . "&view=weekly";
+                                            echo "<option value='" . htmlspecialchars($tableName) . "' {$selected} data-default-url='{$defaultUrl}'>";
+                                        } else {
+                                            echo "<option value='" . htmlspecialchars($tableName) . "' {$selected}>";
+                                        }
+                                        echo htmlspecialchars($project['project_name']) . "</option>";
+                                    }
+                                } catch (PDOException $e) {
+                                    echo "<option value=''>Error loading projects</option>";
+                                }
+                                ?>
                             </select>
                         </div>
                     <?php endif; ?>

@@ -188,6 +188,11 @@ $additional_css = '
         color: #6c757d;
         line-height: 1.5;
     }
+
+    .btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
 </style>
 ';
 
@@ -269,10 +274,11 @@ ob_start();
             <div class="card-header">
                 <h3 class="card-title">KPI Summary</h3>
                 <div class="card-tools">
-                    <button type="button" id="exportKPISummary" class="btn btn-sm btn-success mr-1">
+                    <button type="button" id="exportKPISummary" class="btn btn-sm btn-success mr-1" disabled>
                         <i class="fas fa-download mr-1"></i> Export
                     </button>
-                    <button type="button" id="importKPISummary" class="btn btn-sm btn-warning mr-1" data-toggle="modal" data-target="#importSummaryModal">
+                    <button type="button" id="importKPISummary" class="btn btn-sm btn-warning mr-1" 
+                            data-toggle="modal" data-target="#importSummaryModal" disabled>
                         <i class="fas fa-upload mr-1"></i> Import
                     </button>
                 </div>
@@ -394,6 +400,10 @@ document.addEventListener('DOMContentLoaded', function() {
         theme: 'bootstrap4'
     });
 
+    // Initially disable export and import buttons
+    $('#exportKPISummary').prop('disabled', true);
+    $('#importKPISummary').prop('disabled', true);
+
     // Initialize DataTable with simpler configuration first
     var kpiTable = $('#kpiSummaryTable').DataTable({
         processing: true,
@@ -495,10 +505,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Handle project selection
     $('#summaryProject').on('change', function() {
-        var project = $(this).val();
-        console.log('Selected project:', project);
-
-        if (!project) {
+        const selectedProject = $(this).val();
+        
+        // Enable/disable buttons based on project selection
+        $('#exportKPISummary').prop('disabled', !selectedProject);
+        $('#importKPISummary').prop('disabled', !selectedProject);
+        
+        if (!selectedProject) {
             kpiTable.clear().draw();
             return;
         }
@@ -507,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $.ajax({
             url: '../controller/get_kpi_summary.php',
             type: 'GET',
-            data: { project: project },
+            data: { project: selectedProject },
             dataType: 'json',
             success: function(response) {
                 console.log('Response:', response);

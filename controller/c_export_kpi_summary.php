@@ -11,8 +11,8 @@ try {
     }
 
     $project = $_GET['project'];
-    // Project name already contains 'kpi_' prefix, no need to add it again
-    $tableName = $project . "_individual_mon";
+    // Create table name with 'kpi_' prefix and lowercase project name
+    $tableName = 'kpi_' . strtolower($project);
     
     error_log("Exporting data from table: " . $tableName);
 
